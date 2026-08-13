@@ -30,7 +30,7 @@ services:
       JWT_REFRESH_SECRET: super_secret_klyro_jwt_refresh_key_dev_mode_only_987654321
       DEV_OTP_ENABLED: 'true'
       DEFAULT_DEV_OTP: '123456'
-      CORS_ORIGIN: http://localhost:3000, http://192.168.31.183:3000
+      CORS_ORIGIN: http://localhost:3000
     depends_on:
       - mongodb
     networks:

@@ -33,7 +33,7 @@ const defaultApiEnv = {
   DEV_OTP_ENABLED: process.env.DEV_OTP_ENABLED || 'true',
   DEFAULT_DEV_OTP: process.env.DEFAULT_DEV_OTP || '123456',
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  KLYRO_BILLING_MODE: 'development',
+  KLYRO_BILLING_MODE: process.env.KLYRO_BILLING_MODE || 'development',
 };
 
 module.exports = {
