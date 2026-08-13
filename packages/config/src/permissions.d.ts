@@ -1,0 +1,23 @@
+export declare const PERMISSIONS: {
+    readonly ORGANIZATION_READ: "organization:read";
+    readonly ORGANIZATION_UPDATE: "organization:update";
+    readonly BRANCH_READ: "branch:read";
+    readonly BRANCH_CREATE: "branch:create";
+    readonly BRANCH_UPDATE: "branch:update";
+    readonly CUSTOMER_READ: "customer:read";
+    readonly CUSTOMER_CREATE: "customer:create";
+    readonly CUSTOMER_UPDATE: "customer:update";
+    readonly MEMBERSHIP_READ: "membership:read";
+    readonly MEMBERSHIP_CREATE: "membership:create";
+    readonly MEMBERSHIP_UPDATE: "membership:update";
+    readonly PAYMENT_READ: "payment:read";
+    readonly PAYMENT_CREATE: "payment:create";
+    readonly PAYMENT_REFUND: "payment:refund";
+    readonly ATTENDANCE_READ: "attendance:read";
+    readonly ATTENDANCE_CREATE: "attendance:create";
+    readonly STAFF_READ: "staff:read";
+    readonly STAFF_MANAGE: "staff:manage";
+    readonly REPORTS_READ: "reports:read";
+    readonly BILLING_MANAGE: "billing:manage";
+};
+export type PermissionType = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

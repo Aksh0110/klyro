@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# Build & Compilation Outputs
+dist/
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# PM2 & Application Runtime Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pm2/
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Operating System & IDE Configs
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary Files
+tmp/
+temp/
+.cache/

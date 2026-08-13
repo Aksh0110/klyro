@@ -73,6 +73,29 @@ The Web PWA application will start on `http://localhost:3000`.
 
 ---
 
+## PM2 Fast Development Setup
+
+For fast local development without waiting for Docker container builds:
+
+```bash
+# Install PM2 globally (if not already installed)
+npm install -g pm2
+
+# Start NestJS API and Next.js Web apps in watch mode
+npm run pm2:start
+
+# View real-time logs
+npm run pm2:logs
+
+# Check status
+npm run pm2:status
+
+# Stop PM2 processes
+npm run pm2:stop
+```
+
+---
+
 ## Docker Compose Setup
 
 Run the full stack (API, Web, MongoDB) in isolated containers:
