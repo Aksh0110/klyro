@@ -30,6 +30,9 @@ export class Customer {
   @Prop({ type: Types.ObjectId, ref: 'Branch', required: true, index: true })
   branchId!: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'User', index: true })
+  userId?: Types.ObjectId;
+
   @Prop({ required: true })
   customerCode!: string;
 

@@ -9,6 +9,8 @@ import {
   IsEmail,
   IsNumber,
   Min,
+  Max,
+  IsBoolean,
   IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -131,6 +133,31 @@ export class UpdateOrganizationDto {
   address?: OrganizationAddressDto;
 }
 
+export class BranchLocationDto {
+  @IsOptional()
+  @IsNumber({}, { message: 'Latitude must be a valid number' })
+  @Min(-90, { message: 'Latitude must be between -90 and 90' })
+  @Max(90, { message: 'Latitude must be between -90 and 90' })
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'Longitude must be a valid number' })
+  @Min(-180, { message: 'Longitude must be between -180 and 180' })
+  @Max(180, { message: 'Longitude must be between -180 and 180' })
+  longitude?: number;
+}
+
+export class BranchSettingsDto {
+  @IsOptional()
+  @IsBoolean({ message: 'memberSelfCheckInEnabled must be a boolean' })
+  memberSelfCheckInEnabled?: boolean;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'selfCheckInRadiusMeters must be a number' })
+  @Min(1, { message: 'selfCheckInRadiusMeters must be at least 1 meter' })
+  selfCheckInRadiusMeters?: number;
+}
+
 export class CreateBranchDto {
   @IsString()
   @IsNotEmpty({ message: 'Branch name is required' })
@@ -144,6 +171,16 @@ export class CreateBranchDto {
   @ValidateNested()
   @Type(() => OrganizationAddressDto)
   address?: OrganizationAddressDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BranchLocationDto)
+  location?: BranchLocationDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BranchSettingsDto)
+  settings?: BranchSettingsDto;
 }
 
 export class UpdateBranchDto {
@@ -163,6 +200,16 @@ export class UpdateBranchDto {
   @ValidateNested()
   @Type(() => OrganizationAddressDto)
   address?: OrganizationAddressDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BranchLocationDto)
+  location?: BranchLocationDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BranchSettingsDto)
+  settings?: BranchSettingsDto;
 }
 
 export class EmergencyContactDto {
@@ -448,3 +495,94 @@ export class FinancialSummaryQueryDto {
   @IsString()
   branchId?: string;
 }
+
+// MILESTONE 4: ATTENDANCE & GPS SELF CHECK-IN DTOs
+export class SelfCheckInDto {
+  @IsNumber({}, { message: 'Latitude is required and must be a number' })
+  @Min(-90, { message: 'Latitude must be between -90 and 90' })
+  @Max(90, { message: 'Latitude must be between -90 and 90' })
+  latitude!: number;
+
+  @IsNumber({}, { message: 'Longitude is required and must be a number' })
+  @Min(-180, { message: 'Longitude must be between -180 and 180' })
+  @Max(180, { message: 'Longitude must be between -180 and 180' })
+  longitude!: number;
+
+  @IsNumber({}, { message: 'Accuracy in meters is required and must be a number' })
+  @Min(0, { message: 'Accuracy cannot be negative' })
+  accuracyMeters!: number;
+}
+
+// MILESTONE 5: COMMUNICATIONS & NOTIFICATIONS DTOs
+export class CreateAnnouncementDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Title is required' })
+  title!: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Body message is required' })
+  body!: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Audience type is required' })
+  audienceType!: 'ALL_MEMBERS' | 'BRANCH_MEMBERS';
+
+  @IsOptional()
+  @IsString()
+  branchId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  scheduledAt?: string;
+
+  @IsOptional()
+  channels?: ('IN_APP' | 'WEB_PUSH' | 'WHATSAPP')[];
+}
+
+export class UpdateAnnouncementDto {
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  body?: string;
+
+  @IsOptional()
+  @IsString()
+  audienceType?: 'ALL_MEMBERS' | 'BRANCH_MEMBERS';
+
+  @IsOptional()
+  @IsString()
+  branchId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  scheduledAt?: string;
+}
+
+export class UpdateNotificationPreferenceDto {
+  @IsOptional()
+  @IsBoolean()
+  membershipReminders?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  paymentNotifications?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  announcements?: boolean;
+}
+
+export class SavePushSubscriptionDto {
+  @IsNotEmpty({ message: 'Push subscription is required' })
+  subscription!: {
+    endpoint: string;
+    keys: {
+      p256dh: string;
+      auth: string;
+    };
+  };
+}
+

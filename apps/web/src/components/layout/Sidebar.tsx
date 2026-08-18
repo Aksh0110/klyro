@@ -3,22 +3,52 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, CreditCard, CalendarCheck, Settings, Dumbbell, Award, Receipt } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Users,
+  CreditCard,
+  CalendarCheck,
+  Settings,
+  Dumbbell,
+  Award,
+  Receipt,
+  Megaphone,
+  Bell,
+  User,
+} from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ElementType;
+  badge?: string;
+}
 
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, activeOrgId } = useAuth();
 
-  const navItems = [
+  const userRole = user?.roles?.find((r) => r.organizationId === activeOrgId)?.role || 'MEMBER';
+  const isMember = userRole === 'MEMBER';
+
+  const memberNavItems: NavItem[] = [
+    { label: 'Member Portal', href: '/member', icon: User },
+    { label: 'My Attendance', href: '/member/attendance', icon: CalendarCheck },
+    { label: 'Notifications', href: '/member/notifications', icon: Bell },
+  ];
+
+  const adminNavItems: NavItem[] = [
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Customers', href: '/customers', icon: Users },
     { label: 'Memberships', href: '/memberships', icon: Award },
     { label: 'Invoices', href: '/invoices', icon: Receipt },
     { label: 'Payments', href: '/payments', icon: CreditCard },
-    { label: 'Attendance', href: '#', icon: CalendarCheck, badge: 'Soon' },
+    { label: 'Communications', href: '/communications', icon: Megaphone },
     { label: 'Settings', href: '/settings', icon: Settings },
   ];
+
+  const navItems = isMember ? memberNavItems : adminNavItems;
 
   return (
     <aside className="hidden md:flex flex-col w-64 bg-card border-r border-border min-h-screen p-4 justify-between">
@@ -30,7 +60,7 @@ export const Sidebar: React.FC = () => {
           </div>
           <div>
             <h1 className="font-bold text-lg text-foreground tracking-tight">Klyro Gym</h1>
-            <p className="text-xs text-muted-foreground">Multi-Tenant Platform</p>
+            <p className="text-xs text-muted-foreground">{isMember ? 'Member Portal' : 'Multi-Tenant Platform'}</p>
           </div>
         </div>
 
@@ -38,7 +68,9 @@ export const Sidebar: React.FC = () => {
         <nav className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href || (item.href !== '/dashboard' && item.href !== '#' && pathname.startsWith(item.href));
+            const isActive =
+              pathname === item.href ||
+              (item.href !== '/dashboard' && item.href !== '/member' && item.href !== '#' && pathname.startsWith(item.href));
             return (
               <Link
                 key={item.label}
@@ -67,10 +99,16 @@ export const Sidebar: React.FC = () => {
       {/* User Footer */}
       <div className="pt-4 border-t border-border">
         <div className="px-3 py-2 bg-secondary/50 rounded-xl">
-          <p className="text-xs text-muted-foreground">Logged in as</p>
-          <p className="text-sm font-semibold text-foreground truncate">{user?.phone || 'Authenticated User'}</p>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Logged in as</p>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary">
+              {userRole}
+            </span>
+          </div>
+          <p className="text-sm font-semibold text-foreground truncate mt-1">{user?.phone || 'Authenticated User'}</p>
         </div>
       </div>
     </aside>
   );
 };
+

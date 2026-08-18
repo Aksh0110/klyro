@@ -297,6 +297,7 @@ export class GymBillingService {
     });
 
     const newTotalPaid = currentPaid + dto.amount;
+    invoice.paidAmount = newTotalPaid;
     if (newTotalPaid >= invoice.totalAmount) {
       invoice.status = INVOICE_STATUS.PAID;
     } else {
@@ -338,6 +339,7 @@ export class GymBillingService {
         .exec();
 
       const remainingPaid = remainingPayments.reduce((sum, p) => sum + p.amount, 0);
+      invoice.paidAmount = remainingPaid;
 
       if (remainingPaid <= 0) {
         invoice.status = INVOICE_STATUS.OPEN;

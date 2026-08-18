@@ -8,3 +8,5 @@ export * from './membership-plan';
 export * from './customer-membership';
 export * from './subscription';
 export * from './gym-billing';
+export * from './attendance';
+export * from './communications';

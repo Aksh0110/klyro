@@ -17,6 +17,7 @@ export interface IInvoice {
   subtotal: number;
   discountAmount: number;
   totalAmount: number;
+  paidAmount?: number;
   currency: string;
   status: InvoiceStatusType;
   source: InvoiceSourceType;

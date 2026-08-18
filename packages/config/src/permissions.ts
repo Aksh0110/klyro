@@ -30,10 +30,24 @@ export const PERMISSIONS = {
   FINANCIAL_SUMMARY_READ: 'financial_summary:read',
 
   ATTENDANCE_READ: 'attendance:read',
+  ATTENDANCE_READ_OWN: 'attendance:read:own',
   ATTENDANCE_CREATE: 'attendance:create',
+  ATTENDANCE_SELF_CHECKIN: 'attendance:self_checkin',
+  ATTENDANCE_SUMMARY: 'attendance:summary',
 
   STAFF_READ: 'staff:read',
   STAFF_MANAGE: 'staff:manage',
+
+  // Milestone 5 — Communications & Notifications
+  ANNOUNCEMENT_READ: 'announcement:read',
+  ANNOUNCEMENT_CREATE: 'announcement:create',
+  ANNOUNCEMENT_UPDATE: 'announcement:update',
+  ANNOUNCEMENT_PUBLISH: 'announcement:publish',
+  ANNOUNCEMENT_CANCEL: 'announcement:cancel',
+
+  NOTIFICATION_READ: 'notification:read',
+  NOTIFICATION_MANAGE: 'notification:manage',
+  NOTIFICATION_RUN_TRIGGERS: 'notification:run_triggers',
 
   REPORTS_READ: 'reports:read',
   BILLING_MANAGE: 'billing:manage',

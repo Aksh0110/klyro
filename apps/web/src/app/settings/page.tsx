@@ -5,7 +5,8 @@ import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/lib/auth-context';
 import { apiRequest } from '@/lib/api';
 import { IOrganization, IBranch } from '@klyro/types';
-import { Settings as SettingsIcon, Building2, Plus, CheckCircle2 } from 'lucide-react';
+import Link from 'next/link';
+import { Settings as SettingsIcon, Building2, Plus, CheckCircle2, MapPin } from 'lucide-react';
 
 export default function SettingsPage() {
   const { activeOrgId } = useAuth();
@@ -100,6 +101,26 @@ export default function SettingsPage() {
               <p className="text-foreground font-semibold text-base mt-0.5">{org?.settings?.currency || 'INR'}</p>
             </div>
           </div>
+        </div>
+
+        {/* Attendance & GPS Self Check-In Configuration Card */}
+        <div className="bg-card border border-border rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-emerald-500" />
+              Member GPS Self Check-In Settings
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Enable/disable phone GPS self check-in, set branch latitude/longitude coordinates, and configure radius.
+            </p>
+          </div>
+          <Link
+            href="/settings/attendance"
+            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 shrink-0"
+          >
+            <SettingsIcon className="w-4 h-4" />
+            <span>Manage Check-In Settings</span>
+          </Link>
         </div>
 
         {/* Branch Management */}

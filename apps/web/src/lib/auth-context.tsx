@@ -65,7 +65,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (userData.organizationIds.length === 0 && pathname !== '/setup') {
           router.push('/setup');
         } else if (userData.organizationIds.length > 0 && (pathname === '/login' || pathname === '/verify-otp' || pathname === '/setup')) {
-          router.push('/dashboard');
+          const userRole = userData.roles?.find((r) => r.organizationId === (targetOrg || userData.organizationIds[0]))?.role || 'MEMBER';
+          if (userRole === 'MEMBER') {
+            router.push('/member');
+          } else {
+            router.push('/dashboard');
+          }
         }
       } catch {
         logout();
@@ -95,8 +100,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(data.user);
 
     if (data.user.organizationIds.length > 0) {
-      setActiveOrgId(data.user.organizationIds[0]);
-      router.push('/dashboard');
+      const primaryOrgId = data.user.organizationIds[0];
+      setActiveOrgId(primaryOrgId);
+      const userRole = data.user.roles?.find((r) => r.organizationId === primaryOrgId)?.role || 'MEMBER';
+      if (userRole === 'MEMBER') {
+        router.push('/member');
+      } else {
+        router.push('/dashboard');
+      }
     } else {
       router.push('/setup');
     }
