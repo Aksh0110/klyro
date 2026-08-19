@@ -43,7 +43,7 @@ export class GymWorkflowController {
     @GetCurrentUser() user: any,
     @Body() dto: OnboardMemberDto,
   ) {
-    const recordedByUserId = user?.userId || user?._id || user?.id;
+    const recordedByUserId = tenant?.userId || user?.userId || user?._id || user?.id;
     return this.workflowService.onboardMember(tenant.organizationId, dto, recordedByUserId);
   }
 
@@ -56,7 +56,7 @@ export class GymWorkflowController {
     @GetCurrentUser() user: any,
     @Body() dto: RenewMemberDto,
   ) {
-    const recordedByUserId = user?.userId || user?._id || user?.id;
+    const recordedByUserId = tenant?.userId || user?.userId || user?._id || user?.id;
     return this.workflowService.renewMembership(tenant.organizationId, customerId, dto, recordedByUserId);
   }
 
@@ -69,7 +69,7 @@ export class GymWorkflowController {
     @GetCurrentUser() user: any,
     @Body() dto: CollectMemberPaymentDto,
   ) {
-    const recordedByUserId = user?.userId || user?._id || user?.id;
+    const recordedByUserId = tenant?.userId || user?.userId || user?._id || user?.id;
     return this.workflowService.collectMemberPayment(tenant.organizationId, customerId, dto, recordedByUserId);
   }
 }

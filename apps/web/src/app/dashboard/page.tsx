@@ -167,7 +167,7 @@ export default function DashboardPage() {
               Collected Revenue
             </span>
             <div className="text-2xl font-extrabold text-foreground">
-              ₹{(finSummary?.totalPaid || 0).toLocaleString()}
+              ₹{(finSummary?.totalCollected ?? finSummary?.totalPaid ?? 0).toLocaleString()}
             </div>
             <div className="text-xs text-muted-foreground mt-1">Gym billing receipts</div>
           </div>

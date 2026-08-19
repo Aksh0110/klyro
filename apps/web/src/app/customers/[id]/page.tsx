@@ -66,16 +66,22 @@ export default function CustomerDetailPage() {
       const [memData, planData, invData, payData] = await Promise.all([
         apiRequest<ICustomerMembership[]>(`/memberships/customer/${customerId}`, {}, activeOrgId).catch(() => []),
         apiRequest<IMembershipPlan[]>('/membership-plans', {}, activeOrgId).catch(() => []),
-        apiRequest<IInvoice[]>(`/customers/${customerId}/invoices`, {}, activeOrgId).catch(() => []),
-        apiRequest<IPayment[]>(`/customers/${customerId}/payments`, {}, activeOrgId).catch(() => []),
+        apiRequest<IInvoice[]>(`/customers/${customerId}/invoices`, {}, activeOrgId)
+          .catch(async () => {
+            return apiRequest<IInvoice[]>(`/invoices?customerId=${customerId}`, {}, activeOrgId).catch(() => []);
+          }),
+        apiRequest<IPayment[]>(`/customers/${customerId}/payments`, {}, activeOrgId)
+          .catch(async () => {
+            return apiRequest<IPayment[]>(`/payments?customerId=${customerId}`, {}, activeOrgId).catch(() => []);
+          }),
       ]);
 
-      setMemberships(memData || []);
-      setPlans(planData || []);
-      setInvoices(invData || []);
-      setPayments(payData || []);
+      setMemberships(Array.isArray(memData) ? memData : (memData as any)?.data || []);
+      setPlans(Array.isArray(planData) ? planData : (planData as any)?.data || []);
+      setInvoices(Array.isArray(invData) ? invData : (invData as any)?.data || []);
+      setPayments(Array.isArray(payData) ? payData : (payData as any)?.data || []);
 
-      if (planData && planData.length > 0) setRenewPlanId(planData[0]._id);
+      if (planData && Array.isArray(planData) && planData.length > 0) setRenewPlanId(planData[0]._id);
     } catch (err) {
       console.error('Failed to load customer profile:', err);
     } finally {
@@ -455,24 +461,40 @@ export default function CustomerDetailPage() {
             </div>
 
             {payments.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-4 text-center">No payment transactions recorded.</p>
+              <div className="p-6 rounded-xl bg-secondary/10 border border-dashed border-border text-center space-y-1">
+                <p className="text-xs text-muted-foreground">No payment transactions recorded yet.</p>
+                {outstandingDues > 0 && (
+                  <button
+                    onClick={() => setShowCollectModal(true)}
+                    className="text-xs text-primary font-semibold hover:underline"
+                  >
+                    + Record First Payment
+                  </button>
+                )}
+              </div>
             ) : (
-              <div className="space-y-3 max-h-72 overflow-y-auto">
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                 {payments.map((p) => (
                   <div
                     key={p._id}
                     className="p-3.5 rounded-xl bg-secondary/30 border border-border flex items-center justify-between text-xs"
                   >
-                    <div>
-                      <div className="font-bold text-foreground">
-                        ₹{p.amount.toLocaleString()} ({p.method})
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-foreground text-sm">₹{p.amount.toLocaleString()}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                          {p.method}
+                        </span>
                       </div>
-                      <div className="text-muted-foreground text-[11px] mt-0.5">
-                        {new Date(p.paidAt).toLocaleDateString()} {p.reference ? `· Ref: ${p.reference}` : ''}
+                      <div className="text-muted-foreground text-[11px]">
+                        {new Date(p.paidAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} at{' '}
+                        {new Date(p.paidAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                        {p.reference ? ` · Ref: ${p.reference}` : ''}
                       </div>
+                      {p.notes && <div className="text-[10px] text-muted-foreground/75 italic">{p.notes}</div>}
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">
-                      SUCCESS
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      {p.status || 'SUCCESS'}
                     </span>
                   </div>
                 ))}

@@ -53,7 +53,7 @@ export class MembershipsService {
 
     const price = dto.customPrice !== undefined ? dto.customPrice : plan.price;
 
-    return this.membershipModel.create({
+    const membership = await this.membershipModel.create({
       organizationId: orgObjectId,
       branchId: new Types.ObjectId(dto.branchId),
       customerId: customer._id,
@@ -64,6 +64,21 @@ export class MembershipsService {
       price,
       notes: dto.notes,
     });
+
+    try {
+      await this.gymBillingService.createInvoiceForMembership(
+        organizationId,
+        dto.branchId,
+        customer._id.toString(),
+        membership._id.toString(),
+        price,
+        endDate,
+      );
+    } catch {
+      // Ignore if invoice creation was already handled
+    }
+
+    return membership;
   }
 
   async findAllByOrganization(organizationId: string, page = 1, limit = 20, status?: string) {

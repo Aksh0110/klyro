@@ -67,6 +67,8 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
   const [renewPlanId, setRenewPlanId] = useState('');
   const [renewPaymentMode, setRenewPaymentMode] = useState<'PAY_NOW' | 'PAY_LATER'>('PAY_NOW');
   const [renewMethod, setRenewMethod] = useState('UPI');
+  const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
+  const [isLoadingPending, setIsLoadingPending] = useState(false);
 
   // Announcement state
   const [annTitle, setAnnTitle] = useState('');
@@ -97,6 +99,25 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
     };
     fetchMetadata();
   }, [isOpen, activeOrgId]);
+
+  // Fetch pending payment members for Collect Payment tab
+  useEffect(() => {
+    if (!isOpen || !activeOrgId) return;
+    const fetchPendingInvoices = async () => {
+      setIsLoadingPending(true);
+      try {
+        const invData = await apiRequest<any[]>('/invoices', {}, activeOrgId).catch(() => []);
+        const list = Array.isArray(invData) ? invData : (invData as any)?.data || [];
+        const pending = list.filter((i: any) => i.status !== 'PAID' && i.status !== 'VOID' && i.customerId);
+        setPendingInvoices(pending);
+      } catch {
+        setPendingInvoices([]);
+      } finally {
+        setIsLoadingPending(false);
+      }
+    };
+    fetchPendingInvoices();
+  }, [isOpen, activeOrgId, activeTab]);
 
   // Phone duplicate check debounce
   useEffect(() => {
@@ -777,6 +798,72 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                       className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
                     />
                   </div>
+                </div>
+              )}
+
+              {/* List of Pending Payment Members when no member is selected */}
+              {!selectedCustomer && (
+                <div className="space-y-2.5 pt-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4 text-amber-400" />
+                      Members with Pending Payments ({pendingInvoices.length})
+                    </span>
+                    {isLoadingPending && <span className="text-[11px] text-muted-foreground animate-pulse">Updating...</span>}
+                  </div>
+
+                  {pendingInvoices.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-secondary/20 border border-border text-center text-xs text-muted-foreground">
+                      No pending payment members found. All invoices are fully settled!
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {pendingInvoices.map((inv) => {
+                        const cust = inv.customerId;
+                        if (!cust) return null;
+                        const dueAmount = Math.max(0, inv.totalAmount - (inv.paidAmount || 0));
+                        return (
+                          <div
+                            key={inv._id}
+                            onClick={() => {
+                              setSelectedCustomer(cust);
+                              setCustomerSearch(`${cust.firstName} ${cust.lastName || ''} (${cust.phone})`);
+                              setCollectAmount(dueAmount);
+                            }}
+                            className="p-3 rounded-xl bg-secondary/30 hover:bg-secondary/60 border border-border transition-all cursor-pointer flex items-center justify-between group shadow-sm"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 font-bold text-xs flex items-center justify-center border border-amber-500/20">
+                                {cust.firstName?.charAt(0)?.toUpperCase() || 'M'}
+                              </div>
+                              <div>
+                                <div className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
+                                  {cust.firstName} {cust.lastName || ''}
+                                  <span className="ml-2 font-mono text-[11px] text-muted-foreground font-normal">
+                                    ({cust.customerCode})
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                                  <span>{cust.phone}</span>
+                                  <span>•</span>
+                                  <span className="font-mono text-indigo-400">{inv.invoiceNumber}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <div className="text-xs font-extrabold text-amber-400">
+                                ₹{dueAmount.toLocaleString()} Due
+                              </div>
+                              <div className="text-[10px] text-muted-foreground uppercase font-semibold">
+                                {inv.status}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -35,7 +35,7 @@ export default function PaymentsPage() {
   const fetchPayments = async () => {
     try {
       const data = await apiRequest<any[]>('/payments', {}, activeOrgId || undefined);
-      if (data) setPayments(data);
+      if (data) setPayments(Array.isArray(data) ? data : (data as any)?.data || []);
     } catch {
       console.error('Failed to fetch payments');
     } finally {
@@ -47,7 +47,8 @@ export default function PaymentsPage() {
     try {
       const data = await apiRequest<any[]>('/invoices', {}, activeOrgId || undefined);
       if (data) {
-        const nonPaid = data.filter((i: any) => i.status !== 'PAID' && i.status !== 'VOID');
+        const rawList = Array.isArray(data) ? data : (data as any)?.data || [];
+        const nonPaid = rawList.filter((i: any) => i.status !== 'PAID' && i.status !== 'VOID');
         setOpenInvoices(nonPaid);
       }
     } catch {

@@ -30,7 +30,7 @@ export default function InvoicesPage() {
     try {
       const endpoint = statusFilter !== 'ALL' ? `/invoices?status=${statusFilter}` : '/invoices';
       const data = await apiRequest<any[]>(endpoint, {}, activeOrgId || undefined);
-      if (data) setInvoices(data);
+      if (data) setInvoices(Array.isArray(data) ? data : (data as any)?.data || []);
     } catch {
       console.error('Failed to fetch invoices');
     } finally {
