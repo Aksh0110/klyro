@@ -127,15 +127,15 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
       try {
         const res = await apiRequest<any>('/memberships?limit=100', {}, activeOrgId).catch(() => null);
         const list = Array.isArray(res) ? res : res?.data || [];
-        // Memberships that are expired or expiring within 14 days
+        // Memberships that are expired or expiring within 7 days
         const now = new Date();
-        const fourteenDaysAhead = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+        const sevenDaysAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
         const expiringOrExpired = list.filter((m: any) => {
           if (!m.customerId) return false;
           if (m.status === 'EXPIRED' || m.status === 'CANCELLED') return true;
           if (m.endDate) {
             const end = new Date(m.endDate);
-            return end <= fourteenDaysAhead;
+            return end <= sevenDaysAhead;
           }
           return false;
         });
@@ -907,11 +907,15 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
                 {!selectedCustomer && searchResults.length === 0 && (
                   <div className="mt-2 space-y-1.5">
-                    <p className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider">Expiring / Expired ({expiringMemberships.length})</p>
+                    <p className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider">
+                      Expiring Soon (≤ 7 Days) / Expired ({expiringMemberships.length})
+                    </p>
                     <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                       {expiringMemberships.map((m) => {
                         const cust = m.customerId;
                         if (!cust) return null;
+                        const daysLeft = m.endDate ? Math.ceil((new Date(m.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : undefined;
+
                         return (
                           <div
                             key={m._id}
@@ -921,10 +925,21 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                             }}
                             className="p-2 rounded-xl bg-[#0d1c2d] hover:bg-[#1c2b3c] border border-[#273647] transition-all cursor-pointer flex items-center justify-between text-xs"
                           >
-                            <div className="font-bold text-[#d4e4fa]">
-                              {cust.firstName} {cust.lastName || ''}
+                            <div>
+                              <div className="font-bold text-[#d4e4fa]">
+                                {cust.firstName} {cust.lastName || ''}
+                              </div>
+                              {cust.phone && <div className="text-[10px] text-[#958ea0] font-mono">{cust.phone}</div>}
                             </div>
-                            <span className="text-[10px] font-bold text-[#ffb95f]">Select to Renew</span>
+                            <span className="text-[10px] font-extrabold text-[#ffb95f]">
+                              {daysLeft !== undefined
+                                ? daysLeft > 0
+                                  ? `${daysLeft}d left`
+                                  : daysLeft === 0
+                                  ? 'Expires today'
+                                  : `Expired (${Math.abs(daysLeft)}d)`
+                                : 'Select to Renew'}
+                            </span>
                           </div>
                         );
                       })}
