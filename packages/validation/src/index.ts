@@ -35,7 +35,7 @@ import {
   MandateMethodType,
 } from '@klyro/config';
 
-export const PHONE_REGEX = /^\+?[1-9]\d{7,14}$/;
+export const PHONE_REGEX = /^(\+?[0-9]{1,4}[-.\s]?)?[0-9]{10,14}$/;
 
 export class SendOtpDto {
   @IsString()
@@ -477,6 +477,11 @@ export class RecordPaymentDto {
 }
 
 export class RefundPaymentDto {
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01, { message: 'Refund amount must be greater than 0' })
+  amount?: number;
+
   @IsOptional()
   @IsString()
   notes?: string;

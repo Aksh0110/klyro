@@ -27,6 +27,9 @@ export class Payment {
   @Prop({ required: true, min: 0.01 })
   amount!: number;
 
+  @Prop({ type: Number, default: 0 })
+  refundedAmount!: number;
+
   @Prop({ required: true, default: 'INR' })
   currency!: string;
 

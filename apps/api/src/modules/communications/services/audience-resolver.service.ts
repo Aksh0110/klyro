@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Customer, CustomerDocument } from '../../customers/schemas/customer.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
-import { AUDIENCE_TYPES, AudienceType } from '@klyro/config';
+import { AUDIENCE_TYPES, AudienceType, CUSTOMER_STATUS } from '@klyro/config';
 
 export interface EligibleRecipient {
   userId: Types.ObjectId;
@@ -27,11 +27,17 @@ export class AudienceResolverService {
     const orgObjectId = new Types.ObjectId(organizationId);
 
     const query: any = { organizationId: orgObjectId };
-    if (audienceType === AUDIENCE_TYPES.BRANCH_MEMBERS) {
+    if (audienceType === AUDIENCE_TYPES.BRANCH_MEMBERS || audienceType === AUDIENCE_TYPES.BRANCH_INACTIVE_MEMBERS) {
       if (!branchId) {
-        throw new Error('branchId is required for BRANCH_MEMBERS audience');
+        throw new Error(`branchId is required for ${audienceType} audience`);
       }
       query.branchId = new Types.ObjectId(branchId);
+    }
+
+    if (audienceType === AUDIENCE_TYPES.INACTIVE_MEMBERS || audienceType === AUDIENCE_TYPES.BRANCH_INACTIVE_MEMBERS) {
+      query.status = CUSTOMER_STATUS.INACTIVE;
+    } else {
+      query.status = CUSTOMER_STATUS.ACTIVE;
     }
 
     // Find all customers matching organization & branch criteria

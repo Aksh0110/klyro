@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build --workspace=@klyro/config --workspace=@klyro/types --workspace=@klyro/validation --if-present && npm run build --workspace=api --workspace=web --if-present",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "pm2:dev": "pm2 start ecosystem.config.js",

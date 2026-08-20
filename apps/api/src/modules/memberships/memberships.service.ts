@@ -150,4 +150,45 @@ export class MembershipsService {
 
     return membership.save();
   }
+
+  async updateMembershipDetails(
+    id: string,
+    organizationId: string,
+    dto: {
+      membershipPlanId?: string;
+      startDate?: string;
+      endDate?: string;
+      price?: number;
+      status?: string;
+      notes?: string;
+    },
+  ): Promise<CustomerMembershipDocument> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException('Invalid membership identifier format');
+    }
+
+    const membership = await this.membershipModel
+      .findOne({
+        _id: new Types.ObjectId(id),
+        organizationId: new Types.ObjectId(organizationId),
+      })
+      .exec();
+
+    if (!membership) {
+      throw new NotFoundException('Customer membership subscription not found in current organization');
+    }
+
+    if (dto.membershipPlanId && Types.ObjectId.isValid(dto.membershipPlanId)) {
+      const plan = await this.plansService.findOneByIdAndOrg(dto.membershipPlanId, organizationId);
+      membership.membershipPlanId = plan._id;
+    }
+
+    if (dto.startDate) membership.startDate = new Date(dto.startDate);
+    if (dto.endDate) membership.endDate = new Date(dto.endDate);
+    if (dto.price !== undefined) membership.price = dto.price;
+    if (dto.status) membership.status = dto.status as any;
+    if (dto.notes !== undefined) membership.notes = dto.notes;
+
+    return membership.save();
+  }
 }

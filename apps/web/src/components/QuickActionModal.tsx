@@ -16,6 +16,7 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  Loader2,
 } from 'lucide-react';
 
 interface QuickActionModalProps {
@@ -69,11 +70,15 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
   const [renewMethod, setRenewMethod] = useState('UPI');
   const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
   const [isLoadingPending, setIsLoadingPending] = useState(false);
+  const [expiringMemberships, setExpiringMemberships] = useState<any[]>([]);
+  const [isLoadingExpiring, setIsLoadingExpiring] = useState(false);
 
   // Announcement state
   const [annTitle, setAnnTitle] = useState('');
   const [annBody, setAnnBody] = useState('');
-  const [annAudience, setAnnAudience] = useState<'ALL_MEMBERS' | 'BRANCH_MEMBERS'>('ALL_MEMBERS');
+  const [annAudience, setAnnAudience] = useState<
+    'ALL_MEMBERS' | 'INACTIVE_MEMBERS' | 'BRANCH_MEMBERS' | 'BRANCH_INACTIVE_MEMBERS'
+  >('ALL_MEMBERS');
   const [annBranchId, setAnnBranchId] = useState('');
 
   useEffect(() => {
@@ -116,8 +121,35 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
         setIsLoadingPending(false);
       }
     };
+
+    const fetchExpiringMemberships = async () => {
+      setIsLoadingExpiring(true);
+      try {
+        const res = await apiRequest<any>('/memberships?limit=100', {}, activeOrgId).catch(() => null);
+        const list = Array.isArray(res) ? res : res?.data || [];
+        // Memberships that are expired or expiring within 14 days
+        const now = new Date();
+        const fourteenDaysAhead = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+        const expiringOrExpired = list.filter((m: any) => {
+          if (!m.customerId) return false;
+          if (m.status === 'EXPIRED' || m.status === 'CANCELLED') return true;
+          if (m.endDate) {
+            const end = new Date(m.endDate);
+            return end <= fourteenDaysAhead;
+          }
+          return false;
+        });
+        setExpiringMemberships(expiringOrExpired);
+      } catch {
+        setExpiringMemberships([]);
+      } finally {
+        setIsLoadingExpiring(false);
+      }
+    };
+
     fetchPendingInvoices();
-  }, [isOpen, activeOrgId, activeTab]);
+    fetchExpiringMemberships();
+  }, [isOpen, activeOrgId]);
 
   // Phone duplicate check debounce
   useEffect(() => {
@@ -929,6 +961,64 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                     ))}
                   </div>
                 )}
+
+                {/* Immediate Expiring / Expired Members List */}
+                {!selectedCustomer && searchResults.length === 0 && (
+                  <div className="mt-3 space-y-2">
+                    <div className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
+                      <span>Expiring & Expired Members ({expiringMemberships.length})</span>
+                      {isLoadingExpiring && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}
+                    </div>
+
+                    {expiringMemberships.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic py-2">No expiring members found.</p>
+                    ) : (
+                      <div className="max-h-44 overflow-y-auto space-y-2 pr-1">
+                        {expiringMemberships.map((m) => {
+                          const cust = m.customerId;
+                          if (!cust) return null;
+                          const planName = m.membershipPlanId?.name || 'Membership';
+                          const isExp = new Date(m.endDate) < new Date();
+                          return (
+                            <div
+                              key={m._id}
+                              onClick={() => {
+                                setSelectedCustomer(cust);
+                                setCustomerSearch(`${cust.firstName} ${cust.lastName || ''}`);
+                              }}
+                              className="p-2.5 rounded-xl bg-secondary/30 border border-border hover:border-primary/50 transition-all cursor-pointer flex items-center justify-between text-xs group"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-xs">
+                                  {cust.firstName?.charAt(0)}
+                                </div>
+                                <div>
+                                  <div className="font-bold text-foreground group-hover:text-primary transition-colors">
+                                    {cust.firstName} {cust.lastName || ''}
+                                  </div>
+                                  <div className="text-[11px] text-muted-foreground">
+                                    {planName} · <span className="font-mono">{cust.customerCode}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    isExp
+                                      ? 'bg-destructive/10 text-destructive border border-destructive/20'
+                                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  }`}
+                                >
+                                  {isExp ? 'Expired' : `Exp: ${new Date(m.endDate).toLocaleDateString()}`}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {selectedCustomer && (
@@ -959,29 +1049,43 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setRenewPaymentMode('PAY_NOW')}
-                      className={`p-3 rounded-xl border text-left text-xs font-semibold transition-all ${
+                      className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
                         renewPaymentMode === 'PAY_NOW'
                           ? 'border-primary bg-primary/10 text-primary'
                           : 'border-border bg-secondary/30 text-muted-foreground'
                       }`}
                     >
-                      <div className="font-bold">● Pay Now</div>
-                      <div className="text-[10px] opacity-75">Collect renewal fee immediately</div>
+                      ✓ Pay Now
                     </button>
-
                     <button
                       type="button"
                       onClick={() => setRenewPaymentMode('PAY_LATER')}
-                      className={`p-3 rounded-xl border text-left text-xs font-semibold transition-all ${
+                      className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
                         renewPaymentMode === 'PAY_LATER'
                           ? 'border-primary bg-primary/10 text-primary'
                           : 'border-border bg-secondary/30 text-muted-foreground'
                       }`}
                     >
-                      <div className="font-bold">○ Pay Later</div>
-                      <div className="text-[10px] opacity-75">Generate open invoice</div>
+                      ○ Pay Later
                     </button>
                   </div>
+
+                  {renewPaymentMode === 'PAY_NOW' && (
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Payment Method</label>
+                      <select
+                        value={renewMethod}
+                        onChange={(e) => setRenewMethod(e.target.value)}
+                        className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
+                      >
+                        <option value="UPI">UPI</option>
+                        <option value="CASH">Cash</option>
+                        <option value="CARD">Card</option>
+                        <option value="BANK_TRANSFER">Bank Transfer</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1036,17 +1140,19 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Audience</label>
+                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Target Audience</label>
                   <select
                     value={annAudience}
                     onChange={(e: any) => setAnnAudience(e.target.value)}
                     className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
                   >
-                    <option value="ALL_MEMBERS">All Members in Organization</option>
-                    <option value="BRANCH_MEMBERS">Branch Members Only</option>
+                    <option value="ALL_MEMBERS">Active Members (All Branches)</option>
+                    <option value="INACTIVE_MEMBERS">Inactive Members (All Branches)</option>
+                    <option value="BRANCH_MEMBERS">Branch + Active Members</option>
+                    <option value="BRANCH_INACTIVE_MEMBERS">Branch + Inactive Members</option>
                   </select>
                 </div>
-                {annAudience === 'BRANCH_MEMBERS' && (
+                {(annAudience === 'BRANCH_MEMBERS' || annAudience === 'BRANCH_INACTIVE_MEMBERS') && (
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground mb-1 block">Target Branch</label>
                     <select

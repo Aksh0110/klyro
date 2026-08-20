@@ -31,24 +31,28 @@ export class RetentionInsightService {
       queryBranch.branchId = new Types.ObjectId(branchId);
     }
 
-    // 1. Expiring Memberships
-    const expiringMemberships = await this.membershipModel.find({
-      organizationId: orgObjId,
-      status: 'ACTIVE',
-      endDate: { $gte: now, $lte: sevenDaysFromNow },
-    }).populate('customerId').exec();
+    // 1. Expiring Memberships (expiring in next 7 days or expired)
+    const expiringMemberships = await this.membershipModel
+      .find({
+        organizationId: orgObjId,
+        endDate: { $lte: sevenDaysFromNow },
+      })
+      .populate('customerId')
+      .exec();
 
     let expiringAmountAtRisk = 0;
     expiringMemberships.forEach((m) => {
       expiringAmountAtRisk += (m as any).price || (m as any).pricePaid || 0;
     });
 
-    // 2. Overdue Invoices
-    const overdueInvoices = await this.invoiceModel.find({
-      organizationId: orgObjId,
-      status: { $in: ['OPEN', 'PARTIALLY_PAID'] },
-      dueAt: { $lt: now },
-    }).populate('customerId').exec();
+    // 2. Overdue/Outstanding Invoices
+    const overdueInvoices = await this.invoiceModel
+      .find({
+        organizationId: orgObjId,
+        status: { $in: ['OPEN', 'PARTIALLY_PAID'] },
+      })
+      .populate('customerId')
+      .exec();
 
     let overdueAmountTotal = 0;
     overdueInvoices.forEach((inv) => {

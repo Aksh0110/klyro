@@ -23,6 +23,7 @@ import {
   Calendar,
   Clock,
   Sparkles,
+  RefreshCcw,
   MapPin,
 } from 'lucide-react';
 
@@ -196,6 +197,104 @@ export default function CustomerDetailPage() {
     }
   };
 
+  // Modify Membership Handler
+  const [showModifyModal, setShowModifyModal] = useState(false);
+  const [modifyPlanId, setModifyPlanId] = useState('');
+  const [modifyStartDate, setModifyStartDate] = useState('');
+  const [modifyEndDate, setModifyEndDate] = useState('');
+  const [modifyPrice, setModifyPrice] = useState<number | ''>('');
+  const [modifyNotes, setModifyNotes] = useState('');
+  const [isModifying, setIsModifying] = useState(false);
+  const [modifyError, setModifyError] = useState<string | null>(null);
+
+  const openModifyModal = () => {
+    if (!activeMembership) return;
+    const planId = typeof activeMembership.membershipPlanId === 'object'
+      ? activeMembership.membershipPlanId._id
+      : activeMembership.membershipPlanId;
+    setModifyPlanId(planId || '');
+    setModifyStartDate(activeMembership.startDate ? new Date(activeMembership.startDate).toISOString().slice(0, 10) : '');
+    setModifyEndDate(activeMembership.endDate ? new Date(activeMembership.endDate).toISOString().slice(0, 10) : '');
+    setModifyPrice(activeMembership.price || 0);
+    setModifyNotes(activeMembership.notes || '');
+    setModifyError(null);
+    setShowModifyModal(true);
+  };
+
+  const handleModifySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeOrgId || !activeMembership) return;
+    setIsModifying(true);
+    setModifyError(null);
+    try {
+      await apiRequest(
+        `/memberships/${activeMembership._id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            membershipPlanId: modifyPlanId || undefined,
+            startDate: modifyStartDate || undefined,
+            endDate: modifyEndDate || undefined,
+            price: modifyPrice !== '' ? Number(modifyPrice) : undefined,
+            notes: modifyNotes || undefined,
+          }),
+        },
+        activeOrgId,
+      );
+      setSuccessToast('Membership modified successfully!');
+      setShowModifyModal(false);
+      loadCustomerDetails();
+      setTimeout(() => setSuccessToast(null), 3000);
+    } catch (err: any) {
+      setModifyError(err.message || 'Failed to modify membership');
+    } finally {
+      setIsModifying(false);
+    }
+  };
+
+  // Contextual Refund Handler
+  const [refundPaymentObj, setRefundPaymentObj] = useState<any | null>(null);
+  const [refundAmount, setRefundAmount] = useState<string>('');
+  const [refundNotes, setRefundNotes] = useState<string>('');
+  const [isRefunding, setIsRefunding] = useState(false);
+  const [refundError, setRefundError] = useState<string | null>(null);
+
+  const openRefundModal = (p: any) => {
+    setRefundPaymentObj(p);
+    const max = p.amount - (p.refundedAmount || 0);
+    setRefundAmount(max.toString());
+    setRefundNotes('');
+    setRefundError(null);
+  };
+
+  const handleRefundSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeOrgId || !refundPaymentObj || !refundAmount) return;
+    setIsRefunding(true);
+    setRefundError(null);
+    try {
+      await apiRequest(
+        `/payments/${refundPaymentObj._id}/refund`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            amount: Number(refundAmount),
+            notes: refundNotes || undefined,
+          }),
+        },
+        activeOrgId,
+      );
+      setSuccessToast(`Refund of ₹${refundAmount} processed successfully!`);
+      setRefundPaymentObj(null);
+      loadCustomerDetails();
+      setTimeout(() => setSuccessToast(null), 3000);
+    } catch (err: any) {
+      setRefundError(err.message || 'Failed to process refund');
+    } finally {
+      setIsRefunding(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <AppShell>
@@ -304,6 +403,16 @@ export default function CustomerDetailPage() {
               >
                 <RotateCcw className="w-4 h-4 text-primary" />
                 <span>Renew</span>
+              </button>
+            )}
+
+            {activeMembership && (
+              <button
+                onClick={openModifyModal}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs border border-border transition-all"
+              >
+                <Calendar className="w-4 h-4 text-indigo-400" />
+                <span>Modify Membership</span>
               </button>
             )}
           </div>
@@ -474,30 +583,56 @@ export default function CustomerDetailPage() {
               </div>
             ) : (
               <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                {payments.map((p) => (
-                  <div
-                    key={p._id}
-                    className="p-3.5 rounded-xl bg-secondary/30 border border-border flex items-center justify-between text-xs"
-                  >
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-foreground text-sm">₹{p.amount.toLocaleString()}</span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
-                          {p.method}
+                {payments.map((p) => {
+                  const maxRefundable = p.amount - (p.refundedAmount || 0);
+                  return (
+                    <div
+                      key={p._id}
+                      className="p-3.5 rounded-xl bg-secondary/30 border border-border flex items-center justify-between text-xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-foreground text-sm">₹{p.amount.toLocaleString()}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                            {p.method}
+                          </span>
+                        </div>
+                        {(p.refundedAmount || 0) > 0 && (
+                          <div className="text-[11px] text-destructive font-semibold">
+                            -₹{(p.refundedAmount || 0).toLocaleString()} refunded
+                          </div>
+                        )}
+                        <div className="text-muted-foreground text-[11px]">
+                          {new Date(p.paidAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} at{' '}
+                          {new Date(p.paidAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                          {p.reference ? ` · Ref: ${p.reference}` : ''}
+                        </div>
+                        {p.notes && <div className="text-[10px] text-muted-foreground/75 italic">{p.notes}</div>}
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5">
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                            p.status === 'SUCCESS' && (p.refundedAmount || 0) > 0
+                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                              : p.status === 'SUCCESS'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-destructive/10 text-destructive'
+                          }`}
+                        >
+                          {p.status === 'SUCCESS' && (p.refundedAmount || 0) > 0 ? 'PARTIAL REFUND' : p.status || 'SUCCESS'}
                         </span>
+                        {maxRefundable > 0 && (
+                          <button
+                            onClick={() => openRefundModal(p)}
+                            className="text-[11px] text-muted-foreground hover:text-destructive flex items-center gap-1 font-medium"
+                          >
+                            <RefreshCcw className="w-3 h-3" /> Refund
+                          </button>
+                        )}
                       </div>
-                      <div className="text-muted-foreground text-[11px]">
-                        {new Date(p.paidAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} at{' '}
-                        {new Date(p.paidAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                        {p.reference ? ` · Ref: ${p.reference}` : ''}
-                      </div>
-                      {p.notes && <div className="text-[10px] text-muted-foreground/75 italic">{p.notes}</div>}
                     </div>
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      {p.status || 'SUCCESS'}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -689,6 +824,202 @@ export default function CustomerDetailPage() {
                   className="px-5 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 disabled:opacity-50"
                 >
                   {isRenewing ? 'Renewing...' : 'Renew Membership'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: MODIFY MEMBERSHIP */}
+      {showModifyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-indigo-400" />
+                <h3 className="font-bold text-foreground text-sm">
+                  Modify Membership Details
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowModifyModal(false)}
+                className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {modifyError && (
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs">
+                {modifyError}
+              </div>
+            )}
+
+            <form onSubmit={handleModifySubmit} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Membership Plan</label>
+                <select
+                  value={modifyPlanId}
+                  onChange={(e) => setModifyPlanId(e.target.value)}
+                  className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
+                >
+                  {plans.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {p.name} — ₹{p.price.toLocaleString()} ({p.duration} {p.durationType.toLowerCase()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={modifyStartDate}
+                    onChange={(e) => setModifyStartDate(e.target.value)}
+                    className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={modifyEndDate}
+                    onChange={(e) => setModifyEndDate(e.target.value)}
+                    className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Price (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={modifyPrice}
+                  onChange={(e) => setModifyPrice(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Notes</label>
+                <input
+                  type="text"
+                  placeholder="Modification reason / notes"
+                  value={modifyNotes}
+                  onChange={(e) => setModifyNotes(e.target.value)}
+                  className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setShowModifyModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:bg-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isModifying}
+                  className="px-5 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {isModifying ? 'Saving...' : 'Save Modifications'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: PROCESS REFUND */}
+      {refundPaymentObj && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <RefreshCcw className="w-5 h-5 text-destructive" />
+                <h3 className="font-bold text-foreground text-sm">
+                  Process Payment Refund
+                </h3>
+              </div>
+              <button
+                onClick={() => setRefundPaymentObj(null)}
+                className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {refundError && (
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs">
+                {refundError}
+              </div>
+            )}
+
+            <div className="p-3 rounded-xl bg-secondary/30 border border-border text-xs space-y-1">
+              <div>
+                <span className="text-muted-foreground">Original Payment:</span>{' '}
+                <span className="font-bold">₹{refundPaymentObj.amount}</span> ({refundPaymentObj.method})
+              </div>
+              {refundPaymentObj.refundedAmount > 0 && (
+                <div>
+                  <span className="text-muted-foreground">Already Refunded:</span>{' '}
+                  <span className="font-bold text-destructive">₹{refundPaymentObj.refundedAmount}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-muted-foreground">Max Refundable Balance:</span>{' '}
+                <span className="font-bold text-emerald-400">
+                  ₹{refundPaymentObj.amount - (refundPaymentObj.refundedAmount || 0)}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleRefundSubmit} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Refund Amount (₹) *</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  max={refundPaymentObj.amount - (refundPaymentObj.refundedAmount || 0)}
+                  step="any"
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm font-mono font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Reason / Notes</label>
+                <input
+                  type="text"
+                  placeholder="Optional refund reason"
+                  value={refundNotes}
+                  onChange={(e) => setRefundNotes(e.target.value)}
+                  className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setRefundPaymentObj(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:bg-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRefunding}
+                  className="px-5 py-2 rounded-xl bg-destructive text-destructive-foreground font-bold text-xs hover:bg-destructive/90 disabled:opacity-50"
+                >
+                  {isRefunding ? 'Refunding...' : 'Confirm Refund'}
                 </button>
               </div>
             </form>

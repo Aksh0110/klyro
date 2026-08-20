@@ -356,7 +356,13 @@ export class GymBillingService {
     };
   }
 
-  async refundPayment(organizationId: string, userId: string, paymentId: string, notes?: string) {
+  async refundPayment(
+    organizationId: string,
+    userId: string,
+    paymentId: string,
+    refundAmount?: number,
+    notes?: string,
+  ) {
     const orgObjectId = new Types.ObjectId(organizationId);
 
     const payment = await this.paymentModel
@@ -367,28 +373,51 @@ export class GymBillingService {
       throw new NotFoundException('Payment record not found');
     }
 
-    if (payment.status !== PAYMENT_STATUS.SUCCESS) {
-      throw new BadRequestException('Only successful payments can be refunded');
+    const currentRefunded = payment.refundedAmount || 0;
+    const maxRefundable = payment.amount - currentRefunded;
+
+    if (maxRefundable <= 0) {
+      throw new BadRequestException('Payment is already fully refunded');
     }
 
-    payment.status = PAYMENT_STATUS.REFUNDED;
-    if (notes) payment.notes = payment.notes ? `${payment.notes} | Refund: ${notes}` : `Refund: ${notes}`;
+    const amountToRefund = refundAmount !== undefined && refundAmount > 0 ? refundAmount : maxRefundable;
+
+    if (amountToRefund > maxRefundable) {
+      throw new BadRequestException(
+        `Refund amount ₹${amountToRefund} exceeds maximum refundable balance ₹${maxRefundable}`,
+      );
+    }
+
+    const updatedRefunded = currentRefunded + amountToRefund;
+    payment.refundedAmount = updatedRefunded;
+
+    if (updatedRefunded >= payment.amount) {
+      payment.status = PAYMENT_STATUS.REFUNDED;
+    }
+
+    const refundNote = `Refunded ₹${amountToRefund}${notes ? `: ${notes}` : ''}`;
+    payment.notes = payment.notes ? `${payment.notes} | ${refundNote}` : refundNote;
     await payment.save();
 
-    // Recalculate remaining valid payments for invoice
+    // Recalculate remaining valid net payments for invoice
     const invoice = await this.invoiceModel.findById(payment.invoiceId).exec();
     if (invoice) {
-      const remainingPayments = await this.paymentModel
-        .find({ invoiceId: invoice._id, organizationId: orgObjectId, status: PAYMENT_STATUS.SUCCESS })
+      const allPayments = await this.paymentModel
+        .find({ invoiceId: invoice._id, organizationId: orgObjectId })
         .exec();
 
-      const remainingPaid = remainingPayments.reduce((sum, p) => sum + p.amount, 0);
+      const remainingPaid = allPayments.reduce(
+        (sum, p) => sum + Math.max(0, p.amount - (p.refundedAmount || 0)),
+        0,
+      );
       invoice.paidAmount = remainingPaid;
 
       if (remainingPaid <= 0) {
         invoice.status = INVOICE_STATUS.OPEN;
       } else if (remainingPaid < invoice.totalAmount) {
         invoice.status = INVOICE_STATUS.PARTIALLY_PAID;
+      } else {
+        invoice.status = INVOICE_STATUS.PAID;
       }
       await invoice.save();
     }

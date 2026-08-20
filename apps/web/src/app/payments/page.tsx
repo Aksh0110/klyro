@@ -92,14 +92,46 @@ export default function PaymentsPage() {
     }
   };
 
-  const handleRefund = async (paymentId: string) => {
-    if (!confirm('Are you sure you want to refund this payment?')) return;
+  const [refundPaymentObj, setRefundPaymentObj] = useState<any | null>(null);
+  const [refundAmount, setRefundAmount] = useState<string>('');
+  const [refundNotes, setRefundNotes] = useState<string>('');
+  const [refunding, setRefunding] = useState(false);
+  const [refundError, setRefundError] = useState('');
+
+  const openRefundModal = (payment: any) => {
+    setRefundPaymentObj(payment);
+    const max = payment.amount - (payment.refundedAmount || 0);
+    setRefundAmount(max.toString());
+    setRefundNotes('');
+    setRefundError('');
+  };
+
+  const handleProcessRefund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!refundPaymentObj || !refundAmount || parseFloat(refundAmount) <= 0) return;
+    setRefunding(true);
+    setRefundError('');
+
     try {
-      await apiRequest(`/payments/${paymentId}/refund`, { method: 'POST' }, activeOrgId || undefined);
+      await apiRequest(
+        `/payments/${refundPaymentObj._id}/refund`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            amount: parseFloat(refundAmount),
+            notes: refundNotes || undefined,
+          }),
+        },
+        activeOrgId || undefined,
+      );
+
+      setRefundPaymentObj(null);
       fetchPayments();
       fetchOpenInvoices();
-    } catch {
-      alert('Failed to process refund');
+    } catch (err: any) {
+      setRefundError(err.message || 'Refund processing failed');
+    } finally {
+      setRefunding(false);
     }
   };
 
@@ -127,7 +159,7 @@ export default function PaymentsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Gym Member Payments</h1>
-            <p className="text-xs text-muted-foreground">Domain B — Record manual member payments (Cash, UPI, Card, Transfer)</p>
+            <p className="text-xs text-muted-foreground">Domain B — Record manual member payments & process partial/full refunds</p>
           </div>
 
           <button
@@ -201,46 +233,58 @@ export default function PaymentsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredPayments.map((p) => (
-                    <tr key={p._id} className="hover:bg-secondary/20 transition-all">
-                      <td className="py-4 font-medium text-xs">{new Date(p.paidAt).toLocaleDateString()}</td>
-                      <td className="py-4">
-                        <div className="font-semibold">
-                          {p.customerId ? `${p.customerId.firstName} ${p.customerId.lastName || ''}` : 'Member'}
-                        </div>
-                        <div className="text-xs text-muted-foreground font-mono">{p.customerId?.customerCode}</div>
-                      </td>
-                      <td className="py-4 font-mono font-bold text-xs text-primary">{p.invoiceId?.invoiceNumber}</td>
-                      <td className="py-4">
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-foreground border border-border">
-                          {p.method}
-                        </span>
-                        {p.reference && <div className="text-[11px] text-muted-foreground font-mono mt-0.5">{p.reference}</div>}
-                      </td>
-                      <td className="py-4 font-extrabold text-emerald-600 dark:text-emerald-400">₹{p.amount}</td>
-                      <td className="py-4">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                            p.status === 'SUCCESS'
-                              ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
-                              : 'bg-destructive/10 text-destructive border border-destructive/20'
-                          }`}
-                        >
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="py-4">
-                        {p.status === 'SUCCESS' && (
-                          <button
-                            onClick={() => handleRefund(p._id)}
-                            className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1 font-medium"
+                  {filteredPayments.map((p) => {
+                    const maxRefundable = p.amount - (p.refundedAmount || 0);
+                    return (
+                      <tr key={p._id} className="hover:bg-secondary/20 transition-all">
+                        <td className="py-4 font-medium text-xs">{new Date(p.paidAt).toLocaleDateString()}</td>
+                        <td className="py-4">
+                          <div className="font-semibold">
+                            {p.customerId ? `${p.customerId.firstName} ${p.customerId.lastName || ''}` : 'Member'}
+                          </div>
+                          <div className="text-xs text-muted-foreground font-mono">{p.customerId?.customerCode}</div>
+                        </td>
+                        <td className="py-4 font-mono font-bold text-xs text-primary">{p.invoiceId?.invoiceNumber}</td>
+                        <td className="py-4">
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-foreground border border-border">
+                            {p.method}
+                          </span>
+                          {p.reference && <div className="text-[11px] text-muted-foreground font-mono mt-0.5">{p.reference}</div>}
+                        </td>
+                        <td className="py-4 font-extrabold text-emerald-600 dark:text-emerald-400">
+                          ₹{p.amount}
+                          {p.refundedAmount > 0 && (
+                            <div className="text-[11px] text-destructive font-normal">
+                              -₹{p.refundedAmount} refunded
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-4">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                              p.status === 'SUCCESS' && p.refundedAmount > 0
+                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                : p.status === 'SUCCESS'
+                                ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                                : 'bg-destructive/10 text-destructive border border-destructive/20'
+                            }`}
                           >
-                            <RefreshCcw className="w-3.5 h-3.5" /> Refund
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                            {p.status === 'SUCCESS' && p.refundedAmount > 0 ? 'PARTIAL REFUND' : p.status}
+                          </span>
+                        </td>
+                        <td className="py-4">
+                          {maxRefundable > 0 && (
+                            <button
+                              onClick={() => openRefundModal(p)}
+                              className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1 font-medium"
+                            >
+                              <RefreshCcw className="w-3.5 h-3.5" /> Refund
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -349,6 +393,97 @@ export default function PaymentsPage() {
                 >
                   {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                   <span>Save Payment</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Process Refund Modal */}
+      {refundPaymentObj && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <RefreshCcw className="w-5 h-5 text-destructive" />
+                Process Payment Refund
+              </h3>
+              <button onClick={() => setRefundPaymentObj(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {refundError && (
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+                {refundError}
+              </div>
+            )}
+
+            <div className="p-3 rounded-xl bg-secondary/30 border border-border text-xs space-y-1">
+              <div>
+                <span className="text-muted-foreground">Original Payment:</span>{' '}
+                <span className="font-bold">₹{refundPaymentObj.amount}</span> ({refundPaymentObj.method})
+              </div>
+              {refundPaymentObj.refundedAmount > 0 && (
+                <div>
+                  <span className="text-muted-foreground">Already Refunded:</span>{' '}
+                  <span className="font-bold text-destructive">₹{refundPaymentObj.refundedAmount}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-muted-foreground">Max Refundable Balance:</span>{' '}
+                <span className="font-bold text-emerald-400">
+                  ₹{refundPaymentObj.amount - (refundPaymentObj.refundedAmount || 0)}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleProcessRefund} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">
+                  Refund Amount (₹) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  max={refundPaymentObj.amount - (refundPaymentObj.refundedAmount || 0)}
+                  step="any"
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  className="w-full px-3 py-2 bg-secondary border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">
+                  Refund Reason / Notes
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Member cancellation request"
+                  value={refundNotes}
+                  onChange={(e) => setRefundNotes(e.target.value)}
+                  className="w-full px-3 py-2 bg-secondary border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRefundPaymentObj(null)}
+                  className="px-4 py-2 bg-secondary text-foreground font-semibold rounded-xl text-sm hover:bg-secondary/80"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={refunding}
+                  className="px-5 py-2 bg-destructive text-destructive-foreground font-semibold rounded-xl text-sm hover:bg-destructive/90 flex items-center gap-2"
+                >
+                  {refunding && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>Confirm Refund</span>
                 </button>
               </div>
             </form>

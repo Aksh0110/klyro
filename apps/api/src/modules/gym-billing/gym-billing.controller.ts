@@ -86,6 +86,7 @@ export class GymBillingController {
       tenantContext.organizationId,
       tenantContext.userId,
       id,
+      dto.amount,
       dto.notes,
     );
   }

@@ -16,6 +16,10 @@ export class CustomersService {
   async createCustomer(organizationId: string, dto: CreateCustomerDto): Promise<CustomerDocument> {
     const orgObjectId = new Types.ObjectId(organizationId);
 
+    if (dto.dateOfBirth && new Date(dto.dateOfBirth) > new Date()) {
+      throw new BadRequestException('Date of birth cannot be in the future');
+    }
+
     // Verify branch belongs to organization
     await this.branchesService.findOneByIdAndOrg(dto.branchId, organizationId);
 
