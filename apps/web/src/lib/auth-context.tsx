@@ -128,7 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updatedUser = await apiRequest<IUser>('/auth/me');
     setUser(updatedUser);
 
-    router.push('/dashboard');
+    router.push('/setup/subscription');
     return result;
   };
 

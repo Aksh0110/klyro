@@ -89,6 +89,51 @@ export class SubscriptionService {
     return this.planModel.find({ status: PLAN_STATUS.ACTIVE }).exec();
   }
 
+  async startFreeTrial(organizationId: string, planCode?: string) {
+    const orgObjectId = new Types.ObjectId(organizationId);
+
+    const plan =
+      (await this.planModel.findOne({ code: planCode || 'GROWTH' }).exec()) ||
+      (await this.planModel.findOne({}).exec());
+
+    if (!plan) {
+      throw new NotFoundException('Subscription plan not found');
+    }
+
+    const now = new Date();
+    const trialEndsAt = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000); // 60-day free trial
+
+    let subscription = await this.subModel.findOne({ organizationId: orgObjectId }).exec();
+
+    if (subscription) {
+      subscription.subscriptionPlanId = plan._id;
+      subscription.status = SUBSCRIPTION_STATUS.TRIAL;
+      subscription.trialEndsAt = trialEndsAt;
+      subscription.currentPeriodStart = now;
+      subscription.currentPeriodEnd = trialEndsAt;
+      await subscription.save();
+    } else {
+      subscription = await this.subModel.create({
+        organizationId: orgObjectId,
+        subscriptionPlanId: plan._id,
+        status: SUBSCRIPTION_STATUS.TRIAL,
+        startedAt: now,
+        trialEndsAt: trialEndsAt,
+        currentPeriodStart: now,
+        currentPeriodEnd: trialEndsAt,
+        cancelAtPeriodEnd: false,
+        provider: 'FREE_TRIAL',
+        currency: 'INR',
+        amount: 0,
+      });
+    }
+
+    return {
+      subscription,
+      message: '60-day free trial activated successfully!',
+    };
+  }
+
   async getCurrentSubscription(organizationId: string) {
     const orgObjectId = new Types.ObjectId(organizationId);
 
