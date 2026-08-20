@@ -23,9 +23,25 @@ export class CustomersService {
     // Verify branch belongs to organization
     await this.branchesService.findOneByIdAndOrg(dto.branchId, organizationId);
 
-    // Generate tenant-scoped customer code (e.g. CUST-1001)
-    const count = await this.customerModel.countDocuments({ organizationId: orgObjectId }).exec();
-    const customerCode = `CUST-${1001 + count}`;
+    // Explicit check for existing member phone in organization
+    const existingPhone = await this.customerModel.findOne({ organizationId: orgObjectId, phone: dto.phone }).exec();
+    if (existingPhone) {
+      throw new ConflictException(`A member with phone number ${dto.phone} already exists in your organization (${existingPhone.firstName} ${existingPhone.lastName || ''}).`);
+    }
+
+    // Generate tenant-scoped customer code based on latest record
+    const latestCustomer = await this.customerModel
+      .findOne({ organizationId: orgObjectId })
+      .sort({ createdAt: -1 })
+      .exec();
+    let nextNum = 1001;
+    if (latestCustomer && latestCustomer.customerCode) {
+      const match = latestCustomer.customerCode.match(/CUST-(\d+)/);
+      if (match && match[1]) {
+        nextNum = parseInt(match[1], 10) + 1;
+      }
+    }
+    const customerCode = `CUST-${nextNum}`;
 
     try {
       return await this.customerModel.create({
@@ -44,7 +60,7 @@ export class CustomersService {
       });
     } catch (err: any) {
       if (err.code === 11000) {
-        throw new ConflictException('A customer with this phone or code already exists in your organization');
+        throw new ConflictException('A member with this phone or code already exists in your organization.');
       }
       throw err;
     }

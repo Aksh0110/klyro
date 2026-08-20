@@ -153,14 +153,15 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
   // Phone duplicate check debounce
   useEffect(() => {
-    if (!phone || phone.length < 8 || !activeOrgId) {
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length !== 10 || !activeOrgId) {
       setDuplicateWarning(null);
       return;
     }
     const timer = setTimeout(async () => {
       try {
         const res = await apiRequest<{ exists: boolean; customer?: any; activeMembership?: any; outstandingBalance?: number }>(
-          `/gym/members/check-duplicate?phone=${encodeURIComponent(phone)}`,
+          `/gym/members/check-duplicate?phone=${encodeURIComponent(cleanPhone)}`,
           {},
           activeOrgId,
         );
@@ -224,7 +225,13 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
   const handleOnboardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeOrgId || !firstName || !phone || !selectedPlanId) return;
+    if (isSubmitting || !activeOrgId || !firstName || !phone || !selectedPlanId) return;
+
+    const cleanedPhone = phone.replace(/\D/g, '');
+    if (cleanedPhone.length !== 10) {
+      setErrorMessage('Mobile number must be standard 10 digits (e.g. 9876543210)');
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMessage(null);
@@ -238,7 +245,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
           body: JSON.stringify({
             firstName,
             lastName: lastName || undefined,
-            phone,
+            phone: cleanedPhone,
             membershipPlanId: selectedPlanId,
             discountAmount: discountAmount || 0,
             paymentMode,
@@ -269,7 +276,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
   const handleCollectPaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeOrgId || !selectedCustomer || !collectAmount) return;
+    if (isSubmitting || !activeOrgId || !selectedCustomer || !collectAmount) return;
 
     setIsSubmitting(true);
     setErrorMessage(null);
@@ -303,7 +310,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
   const handleRenewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeOrgId || !selectedCustomer || !renewPlanId) return;
+    if (isSubmitting || !activeOrgId || !selectedCustomer || !renewPlanId) return;
 
     setIsSubmitting(true);
     setErrorMessage(null);
@@ -337,7 +344,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
   const handleAnnouncementSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeOrgId || !annTitle || !annBody) return;
+    if (isSubmitting || !activeOrgId || !annTitle || !annBody) return;
 
     setIsSubmitting(true);
     setErrorMessage(null);
@@ -400,91 +407,92 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex border-b border-border bg-secondary/10 px-6 gap-2">
+        {/* Tab Navigation Grid - 4 Columns so ALL tabs are visible */}
+        <div className="grid grid-cols-4 border-b border-[#273647] bg-[#0d1c2d] p-1.5 gap-1">
           <button
             onClick={() => setActiveTab('onboard')}
-            className={`flex items-center gap-2 py-3 px-3 border-b-2 text-xs font-semibold transition-all ${
+            className={`flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 rounded-xl text-[10px] sm:text-xs font-bold transition-all text-center ${
               activeTab === 'onboard'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                ? 'bg-[#1c2b3c] text-[#d0bcff] border border-[#d0bcff]/40 shadow-sm'
+                : 'text-[#958ea0] hover:text-[#d4e4fa]'
             }`}
           >
-            <UserPlus className="w-4 h-4" />
-            <span>Add Member</span>
+            <UserPlus className="w-3.5 h-3.5" />
+            <span className="truncate">Add Member</span>
           </button>
 
           <button
             onClick={() => setActiveTab('payment')}
-            className={`flex items-center gap-2 py-3 px-3 border-b-2 text-xs font-semibold transition-all ${
+            className={`flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 rounded-xl text-[10px] sm:text-xs font-bold transition-all text-center ${
               activeTab === 'payment'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                ? 'bg-[#1c2b3c] text-[#d0bcff] border border-[#d0bcff]/40 shadow-sm'
+                : 'text-[#958ea0] hover:text-[#d4e4fa]'
             }`}
           >
-            <CreditCard className="w-4 h-4" />
-            <span>Collect Payment</span>
+            <CreditCard className="w-3.5 h-3.5" />
+            <span className="truncate">Payment</span>
           </button>
 
           <button
             onClick={() => setActiveTab('renew')}
-            className={`flex items-center gap-2 py-3 px-3 border-b-2 text-xs font-semibold transition-all ${
+            className={`flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 rounded-xl text-[10px] sm:text-xs font-bold transition-all text-center ${
               activeTab === 'renew'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                ? 'bg-[#1c2b3c] text-[#d0bcff] border border-[#d0bcff]/40 shadow-sm'
+                : 'text-[#958ea0] hover:text-[#d4e4fa]'
             }`}
           >
-            <RotateCcw className="w-4 h-4" />
-            <span>Renew Member</span>
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="truncate">Renew</span>
           </button>
 
           <button
             onClick={() => setActiveTab('announcement')}
-            className={`flex items-center gap-2 py-3 px-3 border-b-2 text-xs font-semibold transition-all ${
+            className={`flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 rounded-xl text-[10px] sm:text-xs font-bold transition-all text-center ${
               activeTab === 'announcement'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                ? 'bg-[#1c2b3c] text-[#d0bcff] border border-[#d0bcff]/40 shadow-sm'
+                : 'text-[#958ea0] hover:text-[#d4e4fa]'
             }`}
           >
-            <Megaphone className="w-4 h-4" />
-            <span>Broadcast</span>
+            <Megaphone className="w-3.5 h-3.5" />
+            <span className="truncate">Broadcast</span>
           </button>
         </div>
 
         {/* Alerts */}
-        <div className="px-6 pt-4">
-          {successMessage && (
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              <span>{successMessage}</span>
-            </div>
-          )}
-          {errorMessage && (
-            <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-        </div>
+        {(successMessage || errorMessage) && (
+          <div className="px-4 pt-3">
+            {successMessage && (
+              <div className="p-2.5 rounded-xl bg-[#4edea3]/10 border border-[#4edea3]/30 text-[#4edea3] text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                <span>{successMessage}</span>
+              </div>
+            )}
+            {errorMessage && (
+              <div className="p-2.5 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* Form Body */}
-        <div className="p-6 overflow-y-auto space-y-4 flex-1">
+        {/* Form Body - High Density & Compact */}
+        <div className="p-4 overflow-y-auto space-y-3 flex-1">
           {/* TAB 1: ADD MEMBER */}
           {activeTab === 'onboard' && (
-            <form onSubmit={handleOnboardSubmit} className="space-y-4">
+            <form onSubmit={handleOnboardSubmit} className="space-y-3">
               {/* Duplicate Detection Alert */}
               {duplicateWarning && (
-                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2">
+                <div className="p-3 rounded-xl bg-[#ffb95f]/10 border border-[#ffb95f]/30 text-[#ffb95f] text-xs space-y-1.5">
                   <div className="flex items-center justify-between font-bold">
                     <span>Member Already Exists with this Phone!</span>
-                    <span className="px-2 py-0.5 rounded bg-amber-500/20 text-[10px]">
+                    <span className="px-2 py-0.5 rounded bg-[#ffb95f]/20 text-[10px]">
                       {duplicateWarning.customer?.customerCode}
                     </span>
                   </div>
-                  <p>
+                  <p className="text-[11px]">
                     {duplicateWarning.customer?.firstName} {duplicateWarning.customer?.lastName || ''} ·{' '}
-                    {duplicateWarning.activeMembership?.planName || 'No Active Membership'} · Outstanding: ₹
-                    {duplicateWarning.outstandingBalance || 0}
+                    {duplicateWarning.activeMembership?.planName || 'No Active Membership'}
                   </p>
                   <div className="flex gap-2 pt-1">
                     <button
@@ -493,7 +501,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                         onClose();
                         router.push(`/customers/${duplicateWarning.customer?._id}`);
                       }}
-                      className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-semibold"
+                      className="px-2.5 py-1 rounded-lg bg-[#ffb95f]/20 hover:bg-[#ffb95f]/30 text-[#ffb95f] text-xs font-semibold"
                     >
                       Open Profile
                     </button>
@@ -503,7 +511,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                         setSelectedCustomer(duplicateWarning.customer);
                         setActiveTab('renew');
                       }}
-                      className="px-3 py-1 rounded-lg bg-secondary hover:bg-secondary/80 text-xs font-semibold"
+                      className="px-2.5 py-1 rounded-lg bg-[#1c2b3c] text-xs font-semibold"
                     >
                       Renew Instead
                     </button>
@@ -511,51 +519,53 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                 </div>
               )}
 
-              {/* Primary Fields */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Primary Compact Fields */}
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">First Name *</label>
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">First Name *</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Rahul"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Last Name</label>
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Last Name</label>
                   <input
                     type="text"
                     placeholder="e.g. Sharma"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Mobile Number *</label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="+91 98765 43210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                />
-              </div>
-
-              {/* Membership Selection */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Membership Plan *</label>
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Mobile Number (10 digits) *</label>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    pattern="[0-9]{10}"
+                    inputMode="numeric"
+                    placeholder="e.g. 9876543210"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Membership Plan *</label>
                   <select
                     value={selectedPlanId}
                     onChange={(e) => setSelectedPlanId(e.target.value)}
-                    className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
                   >
                     {plans.map((p) => (
                       <option key={p._id} value={p._id}>
@@ -564,117 +574,112 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Payment Mode & Discount Row */}
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Discount (₹)</label>
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Discount (₹)</label>
                   <input
                     type="number"
                     min="0"
                     placeholder="0"
                     value={discountAmount || ''}
                     onChange={(e) => setDiscountAmount(Number(e.target.value) || 0)}
-                    className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
                   />
                 </div>
-              </div>
 
-              {/* Pricing calculation callout */}
-              <div className="p-3 rounded-xl bg-secondary/40 border border-border flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Automatic Invoice Total:</span>
-                <span className="text-base font-bold text-foreground">₹{finalPrice.toLocaleString()}</span>
-              </div>
-
-              {/* Payment Mode */}
-              <div className="space-y-3 pt-2">
-                <label className="text-xs font-semibold text-muted-foreground block">Payment Collection</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMode('PAY_NOW')}
-                    className={`p-3 rounded-xl border text-left text-xs font-semibold transition-all ${
-                      paymentMode === 'PAY_NOW'
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border bg-secondary/30 text-muted-foreground'
-                    }`}
-                  >
-                    <div className="font-bold">● Pay Now</div>
-                    <div className="text-[11px] opacity-75 mt-0.5">Record payment immediately (Invoice = PAID)</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMode('PAY_LATER')}
-                    className={`p-3 rounded-xl border text-left text-xs font-semibold transition-all ${
-                      paymentMode === 'PAY_LATER'
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border bg-secondary/30 text-muted-foreground'
-                    }`}
-                  >
-                    <div className="font-bold">○ Pay Later</div>
-                    <div className="text-[11px] opacity-75 mt-0.5">Generate invoice in OPEN status</div>
-                  </button>
-                </div>
-
-                {paymentMode === 'PAY_NOW' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 rounded-xl bg-secondary/20 border border-border">
-                    <div>
-                      <label className="text-[11px] font-semibold text-muted-foreground mb-1 block">Payment Method</label>
-                      <select
-                        value={paymentMethod}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-1.5 text-xs"
-                      >
-                        <option value="UPI">UPI</option>
-                        <option value="CASH">Cash</option>
-                        <option value="CARD">Card</option>
-                        <option value="BANK_TRANSFER">Bank Transfer</option>
-                        <option value="OTHER">Other</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-semibold text-muted-foreground mb-1 block">Reference / UTR</label>
-                      <input
-                        type="text"
-                        placeholder="Optional"
-                        value={paymentReference}
-                        onChange={(e) => setPaymentReference(e.target.value)}
-                        className="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-1.5 text-xs"
-                      >
-                      </input>
-                    </div>
+                <div>
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Collection</label>
+                  <div className="grid grid-cols-2 gap-1 bg-[#1c2b3c] p-1 rounded-xl border border-[#273647]">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMode('PAY_NOW')}
+                      className={`py-1 rounded-lg text-[10px] font-bold transition-all text-center ${
+                        paymentMode === 'PAY_NOW' ? 'bg-[#d0bcff] text-[#3c0091]' : 'text-[#958ea0]'
+                      }`}
+                    >
+                      Pay Now
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMode('PAY_LATER')}
+                      className={`py-1 rounded-lg text-[10px] font-bold transition-all text-center ${
+                        paymentMode === 'PAY_LATER' ? 'bg-[#d0bcff] text-[#3c0091]' : 'text-[#958ea0]'
+                      }`}
+                    >
+                      Pay Later
+                    </button>
                   </div>
-                )}
+                </div>
+              </div>
+
+              {paymentMode === 'PAY_NOW' && (
+                <div className="grid grid-cols-2 gap-2.5 p-2.5 rounded-xl bg-[#0d1c2d] border border-[#273647]">
+                  <div>
+                    <label className="text-[10px] font-bold text-[#958ea0] mb-0.5 block">Payment Method</label>
+                    <select
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="w-full bg-[#1c2b3c] border border-[#273647] rounded-lg px-2 py-1 text-xs text-[#d4e4fa]"
+                    >
+                      <option value="UPI">UPI</option>
+                      <option value="CASH">Cash</option>
+                      <option value="CARD">Card</option>
+                      <option value="BANK_TRANSFER">Bank Transfer</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-[#958ea0] mb-0.5 block">Reference / UTR</label>
+                    <input
+                      type="text"
+                      placeholder="Optional"
+                      value={paymentReference}
+                      onChange={(e) => setPaymentReference(e.target.value)}
+                      className="w-full bg-[#1c2b3c] border border-[#273647] rounded-lg px-2 py-1 text-xs text-[#d4e4fa]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Price Calculation Summary */}
+              <div className="p-2.5 rounded-xl bg-[#0d1c2d] border border-[#273647] flex items-center justify-between text-xs">
+                <span className="text-[#958ea0] text-[11px]">Invoice Total:</span>
+                <span className="text-sm font-extrabold text-[#4edea3]">₹{finalPrice.toLocaleString()}</span>
               </div>
 
               {/* Progressive Disclosure: More Details */}
-              <div className="pt-2">
+              <div>
                 <button
                   type="button"
                   onClick={() => setShowMoreDetails(!showMoreDetails)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                  className="flex items-center gap-1 text-[11px] font-bold text-[#d0bcff] hover:underline"
                 >
                   {showMoreDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  <span>{showMoreDetails ? 'Hide Additional Details' : 'Add More Details (Email, Address, Notes)'}</span>
+                  <span>{showMoreDetails ? 'Hide Extra Fields' : 'Add Optional Email / Address'}</span>
                 </button>
 
                 {showMoreDetails && (
-                  <div className="mt-3 space-y-3 p-4 rounded-xl bg-secondary/20 border border-border">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="mt-2 space-y-2 p-2.5 rounded-xl bg-[#0d1c2d] border border-[#273647]">
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Email</label>
+                        <label className="text-[10px] font-bold text-[#958ea0] block mb-0.5">Email</label>
                         <input
                           type="email"
                           placeholder="member@email.com"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          className="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-1.5 text-xs"
+                          className="w-full bg-[#1c2b3c] border border-[#273647] rounded-lg px-2 py-1 text-xs text-[#d4e4fa]"
                         />
                       </div>
                       <div>
-                        <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Gender</label>
+                        <label className="text-[10px] font-bold text-[#958ea0] block mb-0.5">Gender</label>
                         <select
                           value={gender}
                           onChange={(e) => setGender(e.target.value)}
-                          className="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-1.5 text-xs"
+                          className="w-full bg-[#1c2b3c] border border-[#273647] rounded-lg px-2 py-1 text-xs text-[#d4e4fa]"
                         >
                           <option value="UNSPECIFIED">Unspecified</option>
                           <option value="MALE">Male</option>
@@ -683,58 +688,28 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                         </select>
                       </div>
                     </div>
-                    <div>
-                      <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Address</label>
-                      <input
-                        type="text"
-                        placeholder="Street / Area"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        className="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-1.5 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Emergency Contact</label>
-                      <input
-                        type="text"
-                        placeholder="Name & Contact number"
-                        value={emergencyContact}
-                        onChange={(e) => setEmergencyContact(e.target.value)}
-                        className="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-1.5 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Notes</label>
-                      <input
-                        type="text"
-                        placeholder="Special instructions or medical notes"
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        className="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-1.5 text-xs"
-                      />
-                    </div>
                   </div>
                 )}
               </div>
 
               {/* Submit Button */}
-              <div className="pt-4 border-t border-border flex justify-end gap-3">
+              <div className="pt-2 border-t border-[#273647] flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     onClose();
                     resetForm();
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:bg-secondary"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-[#958ea0] hover:bg-[#1c2b3c]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || !!duplicateWarning}
-                  className="px-5 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all disabled:opacity-50"
+                  disabled={isSubmitting || !firstName || !phone || !selectedPlanId || !!duplicateWarning}
+                  className="px-4 py-2 rounded-xl bg-[#d0bcff] hover:bg-[#d0bcff]/90 text-[#3c0091] text-xs font-extrabold transition-all disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Onboarding...' : 'Complete Onboarding'}
+                  {isSubmitting ? 'Onboarding...' : 'Onboard Member'}
                 </button>
               </div>
             </form>
@@ -742,22 +717,22 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
           {/* TAB 2: COLLECT PAYMENT */}
           {activeTab === 'payment' && (
-            <form onSubmit={handleCollectPaymentSubmit} className="space-y-4">
+            <form onSubmit={handleCollectPaymentSubmit} className="space-y-3">
               <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Find Member</label>
+                <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Find Member</label>
                 <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#958ea0]" />
                   <input
                     type="text"
-                    placeholder="Search by name, phone or code (e.g. CUST-1001)..."
+                    placeholder="Search by name, phone or code..."
                     value={customerSearch}
                     onChange={(e) => setCustomerSearch(e.target.value)}
-                    className="w-full bg-secondary/50 border border-border rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-primary"
+                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl pl-9 pr-4 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
                   />
                 </div>
 
                 {searchResults.length > 0 && (
-                  <div className="mt-2 border border-border rounded-xl bg-card overflow-hidden divide-y divide-border shadow-lg max-h-48 overflow-y-auto">
+                  <div className="mt-1 border border-[#273647] rounded-xl bg-[#122131] overflow-hidden divide-y divide-[#273647] shadow-lg max-h-36 overflow-y-auto">
                     {searchResults.map((c) => (
                       <button
                         key={c._id}
@@ -767,15 +742,13 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                           setCustomerSearch(`${c.firstName} ${c.lastName || ''} (${c.phone})`);
                           setSearchResults([]);
                         }}
-                        className="w-full p-3 text-left hover:bg-secondary/40 flex items-center justify-between text-xs"
+                        className="w-full p-2 text-left hover:bg-[#1c2b3c] flex items-center justify-between text-xs text-[#d4e4fa]"
                       >
                         <div>
-                          <span className="font-bold text-foreground">
-                            {c.firstName} {c.lastName}
-                          </span>
-                          <span className="text-muted-foreground ml-2 font-mono">({c.customerCode})</span>
+                          <span className="font-bold">{c.firstName} {c.lastName}</span>
+                          <span className="text-[#958ea0] ml-2 font-mono">({c.customerCode})</span>
                         </div>
-                        <span className="text-muted-foreground">{c.phone}</span>
+                        <span className="text-[#958ea0]">{c.phone}</span>
                       </button>
                     ))}
                   </div>
@@ -783,17 +756,17 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
               </div>
 
               {selectedCustomer && (
-                <div className="p-4 rounded-xl bg-secondary/30 border border-border space-y-3">
+                <div className="p-3 rounded-xl bg-[#0d1c2d] border border-[#273647] space-y-2.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-foreground">
+                    <span className="font-bold text-[#d4e4fa]">
                       {selectedCustomer.firstName} {selectedCustomer.lastName}
                     </span>
-                    <span className="font-mono text-muted-foreground">{selectedCustomer.customerCode}</span>
+                    <span className="font-mono text-[#958ea0]">{selectedCustomer.customerCode}</span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                  <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Amount (₹) *</label>
+                      <label className="text-[10px] font-bold text-[#958ea0] mb-0.5 block">Amount (₹) *</label>
                       <input
                         type="number"
                         required
@@ -801,15 +774,15 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                         placeholder="e.g. 1500"
                         value={collectAmount}
                         onChange={(e) => setCollectAmount(Number(e.target.value) || '')}
-                        className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
+                        className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 py-1.5 text-xs text-[#d4e4fa]"
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Payment Method</label>
+                      <label className="text-[10px] font-bold text-[#958ea0] mb-0.5 block">Method</label>
                       <select
                         value={collectMethod}
                         onChange={(e) => setCollectMethod(e.target.value)}
-                        className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
+                        className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2 py-1.5 text-xs text-[#d4e4fa]"
                       >
                         <option value="UPI">UPI</option>
                         <option value="CASH">Cash</option>
@@ -819,37 +792,22 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                       </select>
                     </div>
                   </div>
-
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Notes / Reference</label>
-                    <input
-                      type="text"
-                      placeholder="Optional notes"
-                      value={collectNotes}
-                      onChange={(e) => setCollectNotes(e.target.value)}
-                      className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
-                    />
-                  </div>
                 </div>
               )}
 
               {/* List of Pending Payment Members when no member is selected */}
               {!selectedCustomer && (
-                <div className="space-y-2.5 pt-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <CreditCard className="w-4 h-4 text-amber-400" />
-                      Members with Pending Payments ({pendingInvoices.length})
-                    </span>
-                    {isLoadingPending && <span className="text-[11px] text-muted-foreground animate-pulse">Updating...</span>}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-[#d4e4fa]">
+                    <span>Members with Pending Payments ({pendingInvoices.length})</span>
                   </div>
 
                   {pendingInvoices.length === 0 ? (
-                    <div className="p-4 rounded-xl bg-secondary/20 border border-border text-center text-xs text-muted-foreground">
-                      No pending payment members found. All invoices are fully settled!
+                    <div className="p-3 rounded-xl bg-[#0d1c2d] border border-[#273647] text-center text-xs text-[#958ea0]">
+                      No pending payment members found. All invoices are settled!
                     </div>
                   ) : (
-                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                       {pendingInvoices.map((inv) => {
                         const cust = inv.customerId;
                         if (!cust) return null;
@@ -862,34 +820,21 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                               setCustomerSearch(`${cust.firstName} ${cust.lastName || ''} (${cust.phone})`);
                               setCollectAmount(dueAmount);
                             }}
-                            className="p-3 rounded-xl bg-secondary/30 hover:bg-secondary/60 border border-border transition-all cursor-pointer flex items-center justify-between group shadow-sm"
+                            className="p-2.5 rounded-xl bg-[#0d1c2d] hover:bg-[#1c2b3c] border border-[#273647] transition-all cursor-pointer flex items-center justify-between text-xs"
                           >
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 font-bold text-xs flex items-center justify-center border border-amber-500/20">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-[#ffb95f]/15 text-[#ffb95f] font-bold text-xs flex items-center justify-center">
                                 {cust.firstName?.charAt(0)?.toUpperCase() || 'M'}
                               </div>
                               <div>
-                                <div className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
+                                <div className="font-bold text-[#d4e4fa]">
                                   {cust.firstName} {cust.lastName || ''}
-                                  <span className="ml-2 font-mono text-[11px] text-muted-foreground font-normal">
-                                    ({cust.customerCode})
-                                  </span>
                                 </div>
-                                <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
-                                  <span>{cust.phone}</span>
-                                  <span>•</span>
-                                  <span className="font-mono text-indigo-400">{inv.invoiceNumber}</span>
-                                </div>
+                                <div className="text-[10px] text-[#958ea0] font-mono">{cust.phone}</div>
                               </div>
                             </div>
-
                             <div className="text-right">
-                              <div className="text-xs font-extrabold text-amber-400">
-                                ₹{dueAmount.toLocaleString()} Due
-                              </div>
-                              <div className="text-[10px] text-muted-foreground uppercase font-semibold">
-                                {inv.status}
-                              </div>
+                              <div className="text-xs font-bold text-[#ffb95f]">₹{dueAmount.toLocaleString()} Due</div>
                             </div>
                           </div>
                         );
@@ -899,21 +844,21 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                 </div>
               )}
 
-              <div className="pt-4 border-t border-border flex justify-end gap-3">
+              <div className="pt-2 border-t border-[#273647] flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     onClose();
                     resetForm();
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:bg-secondary"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-[#958ea0] hover:bg-[#1c2b3c]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || !selectedCustomer || !collectAmount}
-                  className="px-5 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-[#d0bcff] hover:bg-[#d0bcff]/90 text-[#3c0091] text-xs font-extrabold transition-all disabled:opacity-50"
                 >
                   {isSubmitting ? 'Recording...' : 'Collect Payment'}
                 </button>
@@ -923,22 +868,22 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
           {/* TAB 3: RENEW MEMBER */}
           {activeTab === 'renew' && (
-            <form onSubmit={handleRenewSubmit} className="space-y-4">
+            <form onSubmit={handleRenewSubmit} className="space-y-3">
               <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Select Member to Renew</label>
+                <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Select Member to Renew</label>
                 <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#958ea0]" />
                   <input
                     type="text"
                     placeholder="Search member by name or phone..."
                     value={customerSearch}
                     onChange={(e) => setCustomerSearch(e.target.value)}
-                    className="w-full bg-secondary/50 border border-border rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-primary"
+                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl pl-9 pr-4 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
                   />
                 </div>
 
                 {searchResults.length > 0 && (
-                  <div className="mt-2 border border-border rounded-xl bg-card overflow-hidden divide-y divide-border shadow-lg max-h-48 overflow-y-auto">
+                  <div className="mt-1 border border-[#273647] rounded-xl bg-[#122131] overflow-hidden divide-y divide-[#273647] shadow-lg max-h-36 overflow-y-auto">
                     {searchResults.map((c) => (
                       <button
                         key={c._id}
@@ -948,162 +893,113 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                           setCustomerSearch(`${c.firstName} ${c.lastName || ''}`);
                           setSearchResults([]);
                         }}
-                        className="w-full p-3 text-left hover:bg-secondary/40 flex items-center justify-between text-xs"
+                        className="w-full p-2 text-left hover:bg-[#1c2b3c] flex items-center justify-between text-xs text-[#d4e4fa]"
                       >
                         <div>
-                          <span className="font-bold text-foreground">
-                            {c.firstName} {c.lastName}
-                          </span>
-                          <span className="text-muted-foreground ml-2 font-mono">({c.customerCode})</span>
+                          <span className="font-bold">{c.firstName} {c.lastName}</span>
+                          <span className="text-[#958ea0] ml-2 font-mono">({c.customerCode})</span>
                         </div>
-                        <span className="text-muted-foreground">{c.phone}</span>
+                        <span className="text-[#958ea0]">{c.phone}</span>
                       </button>
                     ))}
                   </div>
                 )}
 
-                {/* Immediate Expiring / Expired Members List */}
                 {!selectedCustomer && searchResults.length === 0 && (
-                  <div className="mt-3 space-y-2">
-                    <div className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
-                      <span>Expiring & Expired Members ({expiringMemberships.length})</span>
-                      {isLoadingExpiring && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}
-                    </div>
-
-                    {expiringMemberships.length === 0 ? (
-                      <p className="text-xs text-muted-foreground italic py-2">No expiring members found.</p>
-                    ) : (
-                      <div className="max-h-44 overflow-y-auto space-y-2 pr-1">
-                        {expiringMemberships.map((m) => {
-                          const cust = m.customerId;
-                          if (!cust) return null;
-                          const planName = m.membershipPlanId?.name || 'Membership';
-                          const isExp = new Date(m.endDate) < new Date();
-                          return (
-                            <div
-                              key={m._id}
-                              onClick={() => {
-                                setSelectedCustomer(cust);
-                                setCustomerSearch(`${cust.firstName} ${cust.lastName || ''}`);
-                              }}
-                              className="p-2.5 rounded-xl bg-secondary/30 border border-border hover:border-primary/50 transition-all cursor-pointer flex items-center justify-between text-xs group"
-                            >
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-xs">
-                                  {cust.firstName?.charAt(0)}
-                                </div>
-                                <div>
-                                  <div className="font-bold text-foreground group-hover:text-primary transition-colors">
-                                    {cust.firstName} {cust.lastName || ''}
-                                  </div>
-                                  <div className="text-[11px] text-muted-foreground">
-                                    {planName} · <span className="font-mono">{cust.customerCode}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <span
-                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    isExp
-                                      ? 'bg-destructive/10 text-destructive border border-destructive/20'
-                                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                  }`}
-                                >
-                                  {isExp ? 'Expired' : `Exp: ${new Date(m.endDate).toLocaleDateString()}`}
-                                </span>
-                              </div>
+                  <div className="mt-2 space-y-1.5">
+                    <p className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider">Expiring / Expired ({expiringMemberships.length})</p>
+                    <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                      {expiringMemberships.map((m) => {
+                        const cust = m.customerId;
+                        if (!cust) return null;
+                        return (
+                          <div
+                            key={m._id}
+                            onClick={() => {
+                              setSelectedCustomer(cust);
+                              setCustomerSearch(`${cust.firstName} ${cust.lastName || ''}`);
+                            }}
+                            className="p-2 rounded-xl bg-[#0d1c2d] hover:bg-[#1c2b3c] border border-[#273647] transition-all cursor-pointer flex items-center justify-between text-xs"
+                          >
+                            <div className="font-bold text-[#d4e4fa]">
+                              {cust.firstName} {cust.lastName || ''}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            <span className="text-[10px] font-bold text-[#ffb95f]">Select to Renew</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
 
               {selectedCustomer && (
-                <div className="p-4 rounded-xl bg-secondary/30 border border-border space-y-3">
+                <div className="p-3 rounded-xl bg-[#0d1c2d] border border-[#273647] space-y-2.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-foreground">
+                    <span className="font-bold text-[#d4e4fa]">
                       Renewing: {selectedCustomer.firstName} {selectedCustomer.lastName}
                     </span>
-                    <span className="font-mono text-muted-foreground">{selectedCustomer.customerCode}</span>
+                    <span className="font-mono text-[#958ea0]">{selectedCustomer.customerCode}</span>
                   </div>
 
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Renewal Plan *</label>
-                    <select
-                      value={renewPlanId}
-                      onChange={(e) => setRenewPlanId(e.target.value)}
-                      className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
-                    >
-                      {plans.map((p) => (
-                        <option key={p._id} value={p._id}>
-                          {p.name} — ₹{p.price.toLocaleString()} ({p.duration} {p.durationType.toLowerCase()})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setRenewPaymentMode('PAY_NOW')}
-                      className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                        renewPaymentMode === 'PAY_NOW'
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border bg-secondary/30 text-muted-foreground'
-                      }`}
-                    >
-                      ✓ Pay Now
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRenewPaymentMode('PAY_LATER')}
-                      className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                        renewPaymentMode === 'PAY_LATER'
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border bg-secondary/30 text-muted-foreground'
-                      }`}
-                    >
-                      ○ Pay Later
-                    </button>
-                  </div>
-
-                  {renewPaymentMode === 'PAY_NOW' && (
+                  <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Payment Method</label>
+                      <label className="text-[10px] font-bold text-[#958ea0] mb-0.5 block">Renewal Plan *</label>
                       <select
-                        value={renewMethod}
-                        onChange={(e) => setRenewMethod(e.target.value)}
-                        className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
+                        value={renewPlanId}
+                        onChange={(e) => setRenewPlanId(e.target.value)}
+                        className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2 py-1.5 text-xs text-[#d4e4fa]"
                       >
-                        <option value="UPI">UPI</option>
-                        <option value="CASH">Cash</option>
-                        <option value="CARD">Card</option>
-                        <option value="BANK_TRANSFER">Bank Transfer</option>
-                        <option value="OTHER">Other</option>
+                        {plans.map((p) => (
+                          <option key={p._id} value={p._id}>
+                            {p.name} — ₹{p.price.toLocaleString()} ({p.duration} {p.durationType.toLowerCase()})
+                          </option>
+                        ))}
                       </select>
                     </div>
-                  )}
+
+                    <div>
+                      <label className="text-[10px] font-bold text-[#958ea0] mb-0.5 block">Payment Mode</label>
+                      <div className="grid grid-cols-2 gap-1 bg-[#1c2b3c] p-1 rounded-xl border border-[#273647]">
+                        <button
+                          type="button"
+                          onClick={() => setRenewPaymentMode('PAY_NOW')}
+                          className={`py-1 rounded-lg text-[10px] font-bold transition-all text-center ${
+                            renewPaymentMode === 'PAY_NOW' ? 'bg-[#d0bcff] text-[#3c0091]' : 'text-[#958ea0]'
+                          }`}
+                        >
+                          Pay Now
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRenewPaymentMode('PAY_LATER')}
+                          className={`py-1 rounded-lg text-[10px] font-bold transition-all text-center ${
+                            renewPaymentMode === 'PAY_LATER' ? 'bg-[#d0bcff] text-[#3c0091]' : 'text-[#958ea0]'
+                          }`}
+                        >
+                          Pay Later
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
-              <div className="pt-4 border-t border-border flex justify-end gap-3">
+              <div className="pt-2 border-t border-[#273647] flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     onClose();
                     resetForm();
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:bg-secondary"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-[#958ea0] hover:bg-[#1c2b3c]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || !selectedCustomer || !renewPlanId}
-                  className="px-5 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-[#d0bcff] hover:bg-[#d0bcff]/90 text-[#3c0091] text-xs font-extrabold transition-all disabled:opacity-50"
                 >
                   {isSubmitting ? 'Renewing...' : 'Renew Membership'}
                 </button>
@@ -1113,80 +1009,63 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
           {/* TAB 4: BROADCAST ANNOUNCEMENT */}
           {activeTab === 'announcement' && (
-            <form onSubmit={handleAnnouncementSubmit} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Announcement Title *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Special Holiday Hours / New Yoga Batch"
-                  value={annTitle}
-                  onChange={(e) => setAnnTitle(e.target.value)}
-                  className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Message Content *</label>
-                <textarea
-                  required
-                  rows={3}
-                  placeholder="Type message to broadcast to gym members..."
-                  value={annBody}
-                  onChange={(e) => setAnnBody(e.target.value)}
-                  className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={handleAnnouncementSubmit} className="space-y-3">
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Target Audience</label>
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Title *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. New Yoga Batch / Holiday"
+                    value={annTitle}
+                    onChange={(e) => setAnnTitle(e.target.value)}
+                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Audience Target</label>
                   <select
                     value={annAudience}
                     onChange={(e: any) => setAnnAudience(e.target.value)}
-                    className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
+                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2 py-1.5 text-xs text-[#d4e4fa]"
                   >
-                    <option value="ALL_MEMBERS">Active Members (All Branches)</option>
-                    <option value="INACTIVE_MEMBERS">Inactive Members (All Branches)</option>
-                    <option value="BRANCH_MEMBERS">Branch + Active Members</option>
-                    <option value="BRANCH_INACTIVE_MEMBERS">Branch + Inactive Members</option>
+                    <option value="ALL_MEMBERS">All Active Members</option>
+                    <option value="INACTIVE_MEMBERS">Inactive Members</option>
+                    <option value="BRANCH_MEMBERS">Branch Members</option>
                   </select>
                 </div>
-                {(annAudience === 'BRANCH_MEMBERS' || annAudience === 'BRANCH_INACTIVE_MEMBERS') && (
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Target Branch</label>
-                    <select
-                      value={annBranchId}
-                      onChange={(e) => setAnnBranchId(e.target.value)}
-                      className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
-                    >
-                      {branches.map((b) => (
-                        <option key={b._id} value={b._id}>
-                          {b.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
               </div>
 
-              <div className="pt-4 border-t border-border flex justify-end gap-3">
+              <div>
+                <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Message Body *</label>
+                <textarea
+                  required
+                  rows={2}
+                  placeholder="Type news message to broadcast..."
+                  value={annBody}
+                  onChange={(e) => setAnnBody(e.target.value)}
+                  className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff] resize-none"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-[#273647] flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     onClose();
                     resetForm();
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:bg-secondary"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-[#958ea0] hover:bg-[#1c2b3c]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || !annTitle || !annBody}
-                  className="px-5 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-[#d0bcff] hover:bg-[#d0bcff]/90 text-[#3c0091] text-xs font-extrabold transition-all disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Broadcasting...' : 'Broadcast Now'}
+                  {isSubmitting ? 'Posting...' : 'Post News'}
                 </button>
               </div>
             </form>
@@ -1196,3 +1075,4 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
     </div>
   );
 };
+
