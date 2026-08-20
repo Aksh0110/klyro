@@ -43,6 +43,9 @@ export class Subscription {
   amount!: number;
 
   @Prop()
+  trialEndsAt?: Date;
+
+  @Prop()
   gracePeriodEndsAt?: Date;
 }
 

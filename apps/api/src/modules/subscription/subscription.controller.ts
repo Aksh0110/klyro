@@ -26,6 +26,15 @@ export class SubscriptionController {
     return this.subscriptionService.getSubscriptionPlans();
   }
 
+  @Post('free-trial')
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  async startFreeTrial(
+    @GetTenantContext() tenantContext: TenantContext,
+    @Body('planCode') planCode?: string,
+  ) {
+    return this.subscriptionService.startFreeTrial(tenantContext.organizationId, planCode);
+  }
+
   @Get('current')
   @UseGuards(JwtAuthGuard, TenantGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.SUBSCRIPTION_READ)

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { apiRequest } from '@/lib/api';
-import { Dumbbell, Check, CreditCard, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
+import { Dumbbell, Check, CreditCard, ShieldCheck, ArrowRight, Loader2, Sparkles, Gift } from 'lucide-react';
 
 interface SubscriptionPlan {
   _id: string;
@@ -24,6 +24,7 @@ export default function SubscriptionSetupPage() {
   const [autopayMethod, setAutopayMethod] = useState<'UPI_AUTOPAY' | 'CARD' | 'EMANDATE'>('UPI_AUTOPAY');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [trialActivating, setTrialActivating] = useState(false);
   const [step, setStep] = useState<'PLAN' | 'AUTOPAY'>('PLAN');
   const [error, setError] = useState('');
 
@@ -34,7 +35,7 @@ export default function SubscriptionSetupPage() {
   const fetchPlans = async () => {
     try {
       const data = await apiRequest<any[]>('/subscription/plans');
-      if (data) {
+      if (data && Array.isArray(data)) {
         setPlans(data);
         if (data.length > 0) setSelectedPlanId(data[1]?._id || data[0]._id);
       }
@@ -42,6 +43,28 @@ export default function SubscriptionSetupPage() {
       setError('Failed to fetch subscription plans');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStartFreeTrial = async () => {
+    setTrialActivating(true);
+    setError('');
+
+    try {
+      await apiRequest(
+        '/subscription/free-trial',
+        {
+          method: 'POST',
+          body: JSON.stringify({ planCode: 'GROWTH' }),
+        },
+        activeOrgId || undefined,
+      );
+
+      router.push('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Failed to activate 60-day free trial');
+    } finally {
+      setTrialActivating(false);
     }
   };
 
@@ -92,111 +115,187 @@ export default function SubscriptionSetupPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-3">
+        <Loader2 className="w-8 h-8 text-[#d0bcff] animate-spin" />
+        <p className="text-xs text-[#958ea0]">Loading Klyro subscription plans...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#051424] text-[#d4e4fa] flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-8">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white mx-auto mb-3 shadow-lg shadow-indigo-500/30">
-          <Dumbbell className="w-6 h-6" />
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#8b5cf6] to-[#d0bcff] flex items-center justify-center text-white mx-auto mb-3 shadow-xl shadow-purple-900/30">
+          <Dumbbell className="w-7 h-7 text-[#051424]" />
         </div>
-        <h2 className="text-3xl font-bold tracking-tight">
-          {step === 'PLAN' ? 'Choose your Klyro Plan' : 'Setup AutoPay Mandate'}
+        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#d4e4fa]">
+          {step === 'PLAN' ? 'Choose Your Klyro Plan' : 'Setup AutoPay Mandate'}
         </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-2 text-xs md:text-sm text-[#958ea0]">
           {step === 'PLAN'
-            ? 'Select a subscription plan tailored to your gym size'
+            ? 'Start your 60-day free trial or choose a plan tailored to your gym'
             : 'Enable recurring monthly billing to activate your account'}
         </p>
       </div>
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-3xl">
+      <div className="sm:mx-auto sm:w-full sm:max-w-4xl space-y-6">
         {error && (
-          <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm text-center">
+          <div className="p-4 rounded-xl bg-[#ffb4ab]/10 border border-[#ffb4ab]/30 text-[#ffb4ab] text-xs text-center font-medium">
             {error}
           </div>
         )}
 
         {step === 'PLAN' ? (
-          <div className="space-y-6">
+          <div className="space-y-8">
+            {/* 60-DAY FREE TRIAL HERO CARD */}
+            <div className="relative overflow-hidden p-6 md:p-8 rounded-3xl bg-gradient-to-br from-[#1c2b3c] via-[#122131] to-[#0d1c2d] border-2 border-[#8b5cf6] shadow-2xl space-y-4">
+              <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-[#8b5cf6]/20 border border-[#8b5cf6]/40 text-[#d0bcff] font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-[#d0bcff]" />
+                <span>Recommended</span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#8b5cf6]/20 border border-[#8b5cf6]/40 flex items-center justify-center text-[#d0bcff]">
+                  <Gift className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg md:text-xl font-extrabold text-[#d4e4fa]">
+                    60-Day Free Trial
+                  </h3>
+                  <p className="text-xs text-[#958ea0] mt-0.5">
+                    Zero credit card required • Full feature access for 60 days
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-[#d4e4fa]/90 leading-relaxed">
+                Enjoy 60 full days of unlimited member onboarding, attendance tracking, billing, invoice generation, and WhatsApp communications with no commitment.
+              </p>
+
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4 text-[11px] text-[#958ea0]">
+                  <span className="flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5 text-[#4edea3]" /> Instant Setup
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5 text-[#4edea3]" /> Cancel Anytime
+                  </span>
+                </div>
+
+                <button
+                  onClick={handleStartFreeTrial}
+                  disabled={trialActivating}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#8b5cf6] hover:bg-[#8b5cf6]/90 text-white font-extrabold text-xs transition-all shadow-lg shadow-purple-900/40 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                >
+                  {trialActivating ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <>
+                      <span>Start 60-Day Free Trial</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* SEPARATOR */}
+            <div className="relative flex py-2 items-center">
+              <div className="flex-grow border-t border-[#273647]"></div>
+              <span className="flex-shrink mx-4 text-xs font-bold text-[#958ea0] uppercase tracking-wider">
+                Or Choose a Monthly Plan
+              </span>
+              <div className="flex-grow border-t border-[#273647]"></div>
+            </div>
+
+            {/* SUBSCRIPTION PLANS GRID */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {plans.map((plan) => {
                 const isSelected = selectedPlanId === plan._id;
+                const isPopular = plan.code === 'GROWTH';
+
                 return (
                   <div
                     key={plan._id}
                     onClick={() => setSelectedPlanId(plan._id)}
-                    className={`p-6 rounded-2xl border cursor-pointer transition-all ${
+                    className={`p-6 rounded-2xl border cursor-pointer transition-all relative flex flex-col justify-between ${
                       isSelected
-                        ? 'border-primary bg-primary/5 shadow-xl shadow-primary/10 ring-2 ring-primary'
-                        : 'border-border bg-card hover:border-muted-foreground/30'
+                        ? 'border-[#d0bcff] bg-[#122131] shadow-xl ring-2 ring-[#d0bcff]/50'
+                        : 'border-[#273647] bg-[#0d1c2d] hover:border-[#958ea0]/40'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-bold text-lg">{plan.name}</h3>
-                      {isSelected && (
-                        <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center">
-                          <Check className="w-4 h-4" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="mb-4">
-                      <span className="text-3xl font-extrabold">₹{plan.monthlyPrice}</span>
-                      <span className="text-muted-foreground text-sm"> / month</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-6 min-h-[32px]">{plan.description}</p>
+                    {isPopular && (
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-[#d0bcff] text-[#3c0091] font-bold text-[10px] uppercase tracking-wider shadow">
+                        Most Popular
+                      </span>
+                    )}
 
-                    <ul className="space-y-2.5 text-xs">
-                      <li className="flex items-center gap-2 text-foreground font-medium">
-                        <Check className="w-3.5 h-3.5 text-emerald-500" />
-                        Up to {plan.memberLimit} active members
-                      </li>
-                      <li className="flex items-center gap-2 text-muted-foreground">
-                        <Check className="w-3.5 h-3.5 text-emerald-500" />
-                        Attendance & Member check-in
-                      </li>
-                      <li className="flex items-center gap-2 text-muted-foreground">
-                        <Check className="w-3.5 h-3.5 text-emerald-500" />
-                        Financial reports & Invoicing
-                      </li>
-                    </ul>
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-bold text-base text-[#d4e4fa]">{plan.name}</h3>
+                        {isSelected && (
+                          <div className="w-5 h-5 rounded-full bg-[#d0bcff] text-[#3c0091] flex items-center justify-center">
+                            <Check className="w-3.5 h-3.5" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mb-3">
+                        <span className="text-2xl font-extrabold text-[#d4e4fa]">₹{plan.monthlyPrice}</span>
+                        <span className="text-[#958ea0] text-xs"> / month</span>
+                      </div>
+
+                      <p className="text-xs text-[#958ea0] mb-5 min-h-[32px]">{plan.description}</p>
+
+                      <ul className="space-y-2 text-xs mb-6">
+                        <li className="flex items-center gap-2 text-[#d4e4fa] font-medium">
+                          <Check className="w-3.5 h-3.5 text-[#4edea3]" />
+                          Up to {plan.memberLimit} active members
+                        </li>
+                        <li className="flex items-center gap-2 text-[#958ea0]">
+                          <Check className="w-3.5 h-3.5 text-[#4edea3]" />
+                          Attendance & Member check-in
+                        </li>
+                        <li className="flex items-center gap-2 text-[#958ea0]">
+                          <Check className="w-3.5 h-3.5 text-[#4edea3]" />
+                          Financial reports & Invoicing
+                        </li>
+                      </ul>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedPlanId(plan._id);
+                        handleProceedCheckout();
+                      }}
+                      disabled={submitting}
+                      className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 ${
+                        isSelected
+                          ? 'bg-[#d0bcff] text-[#3c0091] hover:bg-[#d0bcff]/90'
+                          : 'bg-[#1c2b3c] border border-[#273647] text-[#d4e4fa] hover:bg-[#273647]'
+                      }`}
+                    >
+                      <span>Select Plan</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 );
               })}
             </div>
-
-            <div className="flex justify-end pt-4">
-              <button
-                onClick={handleProceedCheckout}
-                disabled={submitting || !selectedPlanId}
-                className="w-full md:w-auto px-8 py-3 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/25 disabled:opacity-50"
-              >
-                {submitting ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <span>Proceed to Payment</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </div>
           </div>
         ) : (
-          <div className="bg-card border border-border rounded-2xl p-8 shadow-xl max-w-xl mx-auto space-y-6">
-            <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+          <div className="bg-[#122131] border border-[#273647] rounded-2xl p-8 shadow-xl max-w-xl mx-auto space-y-6">
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-[#4edea3]/10 border border-[#4edea3]/20 text-[#4edea3]">
               <ShieldCheck className="w-6 h-6 flex-shrink-0" />
               <p className="text-xs font-medium">
-                Initial subscription payment recorded successfully! Configure AutoPay to complete activation.
+                Initial subscription checkout initiated successfully! Configure AutoPay mandate to complete subscription setup.
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-3">Select AutoPay Method</label>
+              <label className="block text-xs font-bold uppercase text-[#958ea0] mb-3">Select AutoPay Method</label>
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { id: 'UPI_AUTOPAY', label: 'UPI AutoPay' },
@@ -209,8 +308,8 @@ export default function SubscriptionSetupPage() {
                     onClick={() => setAutopayMethod(m.id as any)}
                     className={`py-3 px-3 text-xs font-semibold rounded-xl border text-center transition-all ${
                       autopayMethod === m.id
-                        ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary'
-                        : 'border-border bg-secondary/50 text-muted-foreground hover:bg-secondary'
+                        ? 'border-[#d0bcff] bg-[#1c2b3c] text-[#d4e4fa] ring-1 ring-[#d0bcff]'
+                        : 'border-[#273647] bg-[#0d1c2d] text-[#958ea0] hover:bg-[#1c2b3c]'
                     }`}
                   >
                     {m.label}
@@ -223,7 +322,7 @@ export default function SubscriptionSetupPage() {
               <button
                 type="button"
                 onClick={() => setStep('PLAN')}
-                className="flex-1 py-3 bg-secondary text-foreground font-semibold rounded-xl hover:bg-secondary/80 transition-all text-sm"
+                className="flex-1 py-3 bg-[#1c2b3c] text-[#d4e4fa] font-bold rounded-xl hover:bg-[#273647] transition-all text-xs"
               >
                 Back
               </button>
@@ -231,7 +330,7 @@ export default function SubscriptionSetupPage() {
                 type="button"
                 onClick={handleActivateAutopay}
                 disabled={submitting}
-                className="flex-1 py-3 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/25 disabled:opacity-50"
+                className="flex-1 py-3 bg-[#d0bcff] text-[#3c0091] font-bold rounded-xl hover:bg-[#d0bcff]/90 transition-all text-xs flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
               >
                 {submitting ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
