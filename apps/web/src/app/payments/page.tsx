@@ -1,38 +1,38 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { BottomNav } from '@/components/layout/BottomNav';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/lib/auth-context';
 import { apiRequest } from '@/lib/api';
-import { CreditCard, Plus, Search, RefreshCcw, CheckCircle, AlertTriangle, X, Loader2 } from 'lucide-react';
+import { CreditCard, Plus, Search, RefreshCcw, X, Loader2, Calendar } from 'lucide-react';
+import { QuickActionModal } from '@/components/QuickActionModal';
 
 export default function PaymentsPage() {
+  const router = useRouter();
   const { activeOrgId } = useAuth();
 
   const [payments, setPayments] = useState<any[]>([]);
-  const [openInvoices, setOpenInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'UPI' | 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'REFUNDED'>('ALL');
 
-  // Form State
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
-  const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'OTHER'>('UPI');
-  const [reference, setReference] = useState('');
-  const [notes, setNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  // Modal States
+  const [showQuickModal, setShowQuickModal] = useState(false);
+  const [refundPaymentObj, setRefundPaymentObj] = useState<any | null>(null);
+  const [refundAmount, setRefundAmount] = useState<string>('');
+  const [refundNotes, setRefundNotes] = useState<string>('');
+  const [refunding, setRefunding] = useState(false);
+  const [refundError, setRefundError] = useState('');
 
   useEffect(() => {
     if (activeOrgId) {
       fetchPayments();
-      fetchOpenInvoices();
     }
   }, [activeOrgId]);
 
   const fetchPayments = async () => {
+    setLoading(true);
     try {
       const data = await apiRequest<any[]>('/payments', {}, activeOrgId || undefined);
       if (data) setPayments(Array.isArray(data) ? data : (data as any)?.data || []);
@@ -42,61 +42,6 @@ export default function PaymentsPage() {
       setLoading(false);
     }
   };
-
-  const fetchOpenInvoices = async () => {
-    try {
-      const data = await apiRequest<any[]>('/invoices', {}, activeOrgId || undefined);
-      if (data) {
-        const rawList = Array.isArray(data) ? data : (data as any)?.data || [];
-        const nonPaid = rawList.filter((i: any) => i.status !== 'PAID' && i.status !== 'VOID');
-        setOpenInvoices(nonPaid);
-      }
-    } catch {
-      console.error('Failed to fetch open invoices');
-    }
-  };
-
-  const handleRecordPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedInvoiceId || !amount || parseFloat(amount) <= 0) return;
-    setSubmitting(true);
-    setError('');
-
-    try {
-      await apiRequest(
-        '/payments',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            invoiceId: selectedInvoiceId,
-            amount: parseFloat(amount),
-            method,
-            reference: reference || undefined,
-            notes: notes || undefined,
-          }),
-        },
-        activeOrgId || undefined,
-      );
-
-      setIsModalOpen(false);
-      setSelectedInvoiceId('');
-      setAmount('');
-      setReference('');
-      setNotes('');
-      fetchPayments();
-      fetchOpenInvoices();
-    } catch (err: any) {
-      setError(err.message || 'Payment recording failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const [refundPaymentObj, setRefundPaymentObj] = useState<any | null>(null);
-  const [refundAmount, setRefundAmount] = useState<string>('');
-  const [refundNotes, setRefundNotes] = useState<string>('');
-  const [refunding, setRefunding] = useState(false);
-  const [refundError, setRefundError] = useState('');
 
   const openRefundModal = (payment: any) => {
     setRefundPaymentObj(payment);
@@ -127,7 +72,6 @@ export default function PaymentsPage() {
 
       setRefundPaymentObj(null);
       fetchPayments();
-      fetchOpenInvoices();
     } catch (err: any) {
       setRefundError(err.message || 'Refund processing failed');
     } finally {
@@ -135,313 +79,250 @@ export default function PaymentsPage() {
     }
   };
 
-  const [methodFilter, setMethodFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const filteredPayments = useMemo(() => {
+    return payments.filter((p) => {
+      const custName = p.customerId
+        ? typeof p.customerId === 'object'
+          ? `${p.customerId.firstName} ${p.customerId.lastName || ''}`.toLowerCase()
+          : ''
+        : '';
+      const invNum = p.invoiceId?.invoiceNumber?.toLowerCase() || '';
+      const ref = p.reference?.toLowerCase() || '';
+      const q = search.toLowerCase();
+      const matchesSearch = !q || custName.includes(q) || invNum.includes(q) || ref.includes(q);
 
-  const filteredPayments = payments.filter((p) => {
-    const custName = p.customerId ? `${p.customerId.firstName} ${p.customerId.lastName || ''}`.toLowerCase() : '';
-    const invNum = p.invoiceId?.invoiceNumber?.toLowerCase() || '';
-    const ref = p.reference?.toLowerCase() || '';
-    const q = search.toLowerCase();
-    const matchesSearch = custName.includes(q) || invNum.includes(q) || ref.includes(q);
+      let matchesFilter = true;
+      if (activeFilter === 'REFUNDED') {
+        matchesFilter = p.refundedAmount > 0 || p.status === 'REFUNDED';
+      } else if (activeFilter !== 'ALL') {
+        matchesFilter = p.method === activeFilter;
+      }
 
-    const matchesMethod = methodFilter === 'ALL' || p.method === methodFilter;
-    const matchesStatus = statusFilter === 'ALL' || p.status === statusFilter;
+      return matchesSearch && matchesFilter;
+    });
+  }, [payments, search, activeFilter]);
 
-    return matchesSearch && matchesMethod && matchesStatus;
-  });
+  const totalCollected = useMemo(() => {
+    return filteredPayments.reduce((acc, p) => acc + (p.amount || 0) - (p.refundedAmount || 0), 0);
+  }, [filteredPayments]);
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground pb-16 md:pb-0">
-      <Sidebar />
-
-      <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <AppShell>
+      <div className="space-y-4 max-w-4xl mx-auto pb-6">
+        {/* Header & Quick Action Button */}
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Gym Member Payments</h1>
-            <p className="text-xs text-muted-foreground">Domain B — Record manual member payments & process partial/full refunds</p>
+            <h1 className="text-xl md:text-2xl font-extrabold text-[#d4e4fa]">Money Logs</h1>
+            <p className="text-xs text-[#958ea0]">
+              Total: <span className="font-bold text-[#4edea3]">₹{totalCollected.toLocaleString()}</span> ({filteredPayments.length} transactions)
+            </p>
           </div>
-
           <button
-            onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-xl text-sm hover:bg-primary/90 transition-all flex items-center gap-2 shadow-lg shadow-primary/25 w-fit"
+            onClick={() => setShowQuickModal(true)}
+            className="w-10 h-10 rounded-full bg-[#d0bcff] text-[#3c0091] flex items-center justify-center font-bold shadow-lg hover:bg-[#d0bcff]/90 active:scale-95 transition-all"
+            title="Record Payment"
           >
-            <Plus className="w-4 h-4" />
-            <span>Record Payment</span>
+            <Plus className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Search & Filters */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-3 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search payments by member name, invoice #, reference..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#958ea0]" />
+          <input
+            type="text"
+            placeholder="Search by member name, invoice #, or ref..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-[#122131] border border-[#273647] rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#d4e4fa] placeholder:text-[#958ea0] focus:outline-none focus:border-[#d0bcff] transition-all"
+          />
+        </div>
 
-          <div className="flex items-center gap-2">
-            <select
-              value={methodFilter}
-              onChange={(e) => setMethodFilter(e.target.value)}
-              className="bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        {/* Filter Pills (Matching Members Section Format) */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+          {[
+            { id: 'ALL', label: 'All' },
+            { id: 'UPI', label: 'UPI' },
+            { id: 'CASH', label: 'Cash' },
+            { id: 'CARD', label: 'Card' },
+            { id: 'BANK_TRANSFER', label: 'Bank' },
+            { id: 'REFUNDED', label: 'Refunded' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveFilter(tab.id as any)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${
+                activeFilter === tab.id
+                  ? 'bg-[#1c2b3c] border-[#d0bcff] text-[#d4e4fa]'
+                  : 'bg-[#122131] border-[#273647] text-[#958ea0] hover:text-[#d4e4fa]'
+              }`}
             >
-              <option value="ALL">All Methods</option>
-              <option value="UPI">UPI</option>
-              <option value="CASH">Cash</option>
-              <option value="CARD">Card</option>
-              <option value="BANK_TRANSFER">Bank Transfer</option>
-              <option value="OTHER">Other</option>
-            </select>
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        {/* Payment Logs List */}
+        {loading ? (
+          <div className="py-12 text-center text-xs text-[#958ea0]">Loading payment logs...</div>
+        ) : filteredPayments.length === 0 ? (
+          <div className="p-8 text-center border border-dashed border-[#273647] rounded-2xl bg-[#122131]/50 space-y-3">
+            <CreditCard className="w-10 h-10 mx-auto text-[#958ea0]" />
+            <h3 className="text-sm font-bold text-[#d4e4fa]">No payment logs found</h3>
+            <p className="text-xs text-[#958ea0] max-w-xs mx-auto">
+              {search || activeFilter !== 'ALL'
+                ? 'No payment logs match your current search or filter.'
+                : 'Collect payments from members to see logs here.'}
+            </p>
+            <button
+              onClick={() => setShowQuickModal(true)}
+              className="px-4 py-2 rounded-xl bg-[#d0bcff] text-[#3c0091] font-bold text-xs inline-flex items-center gap-1.5"
             >
-              <option value="ALL">All Statuses</option>
-              <option value="SUCCESS">Success</option>
-              <option value="REFUNDED">Refunded</option>
-            </select>
+              <Plus className="w-4 h-4" />
+              <span>Record Payment</span>
+            </button>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-2.5">
+            {filteredPayments.map((p) => {
+              const custName = p.customerId
+                ? typeof p.customerId === 'object'
+                  ? `${p.customerId.firstName} ${p.customerId.lastName || ''}`.trim()
+                  : 'Member'
+                : 'Member';
+              const custCode = p.customerId?.customerCode;
+              const dateStr = p.paidAt
+                ? new Date(p.paidAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                : 'Recent';
+              const timeStr = p.paidAt
+                ? new Date(p.paidAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : '';
+              const custId = typeof p.customerId === 'object' ? p.customerId?._id : p.customerId;
+              const maxRefundable = p.amount - (p.refundedAmount || 0);
 
-        {/* Payments Table */}
-        <div className="bg-card border border-border rounded-2xl p-4 md:p-6 shadow-sm">
-          {loading ? (
-            <div className="py-12 flex justify-center">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            </div>
-          ) : filteredPayments.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground text-sm">No payment records found.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-xs text-muted-foreground uppercase">
-                    <th className="pb-3 font-semibold">Date</th>
-                    <th className="pb-3 font-semibold">Member</th>
-                    <th className="pb-3 font-semibold">Invoice #</th>
-                    <th className="pb-3 font-semibold">Method</th>
-                    <th className="pb-3 font-semibold">Amount</th>
-                    <th className="pb-3 font-semibold">Status</th>
-                    <th className="pb-3 font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {filteredPayments.map((p) => {
-                    const maxRefundable = p.amount - (p.refundedAmount || 0);
-                    return (
-                      <tr key={p._id} className="hover:bg-secondary/20 transition-all">
-                        <td className="py-4 font-medium text-xs">{new Date(p.paidAt).toLocaleDateString()}</td>
-                        <td className="py-4">
-                          <div className="font-semibold">
-                            {p.customerId ? `${p.customerId.firstName} ${p.customerId.lastName || ''}` : 'Member'}
-                          </div>
-                          <div className="text-xs text-muted-foreground font-mono">{p.customerId?.customerCode}</div>
-                        </td>
-                        <td className="py-4 font-mono font-bold text-xs text-primary">{p.invoiceId?.invoiceNumber}</td>
-                        <td className="py-4">
-                          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-foreground border border-border">
-                            {p.method}
-                          </span>
-                          {p.reference && <div className="text-[11px] text-muted-foreground font-mono mt-0.5">{p.reference}</div>}
-                        </td>
-                        <td className="py-4 font-extrabold text-emerald-600 dark:text-emerald-400">
-                          ₹{p.amount}
-                          {p.refundedAmount > 0 && (
-                            <div className="text-[11px] text-destructive font-normal">
-                              -₹{p.refundedAmount} refunded
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-4">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                              p.status === 'SUCCESS' && p.refundedAmount > 0
-                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                : p.status === 'SUCCESS'
-                                ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
-                                : 'bg-destructive/10 text-destructive border border-destructive/20'
-                            }`}
-                          >
-                            {p.status === 'SUCCESS' && p.refundedAmount > 0 ? 'PARTIAL REFUND' : p.status}
-                          </span>
-                        </td>
-                        <td className="py-4">
-                          {maxRefundable > 0 && (
-                            <button
-                              onClick={() => openRefundModal(p)}
-                              className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1 font-medium"
-                            >
-                              <RefreshCcw className="w-3.5 h-3.5" /> Refund
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* Record Payment Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="text-lg font-bold">Record Manual Payment</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {error && (
-              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleRecordPayment} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Select Open Invoice</label>
-                <select
-                  required
-                  value={selectedInvoiceId}
-                  onChange={(e) => setSelectedInvoiceId(e.target.value)}
-                  className="w-full px-3 py-2 bg-secondary border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              return (
+                <div
+                  key={p._id}
+                  onClick={() => custId && router.push(`/customers/${custId}`)}
+                  className="p-3.5 rounded-2xl bg-[#122131] border border-[#273647] space-y-2 shadow-sm hover:border-[#d0bcff]/40 transition-all cursor-pointer group"
                 >
-                  <option value="">-- Choose Invoice --</option>
-                  {openInvoices.map((inv) => (
-                    <option key={inv._id} value={inv._id}>
-                      {inv.invoiceNumber} - {inv.customerId?.firstName} {inv.customerId?.lastName} (Total: ₹{inv.totalAmount})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-[#4edea3]/10 text-[#4edea3] flex items-center justify-center font-bold text-xs flex-shrink-0 group-hover:border group-hover:border-[#d0bcff]/40 transition-all">
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-xs text-[#d4e4fa] leading-snug group-hover:text-[#d0bcff] transition-colors">
+                          {custName} {custCode && <span className="text-[10px] text-[#958ea0] font-mono">({custCode})</span>}
+                        </h3>
+                        <p className="text-[10px] text-[#958ea0] flex items-center gap-1 mt-0.5">
+                          <Calendar className="w-3 h-3 text-[#958ea0]" />
+                          <span>{dateStr} {timeStr && `• ${timeStr}`}</span>
+                        </p>
+                      </div>
+                    </div>
 
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Payment Amount (₹)</label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  step="any"
-                  placeholder="e.g. 2000"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full px-3 py-2 bg-secondary border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
+                    <div className="text-right">
+                      <div className="text-sm font-extrabold text-[#4edea3]">
+                        +₹{p.amount?.toLocaleString()}
+                      </div>
+                      {p.refundedAmount > 0 && (
+                        <div className="text-[10px] font-bold text-[#ffb4ab]">
+                          -₹{p.refundedAmount?.toLocaleString()} refunded
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Payment Method</label>
-                <select
-                  value={method}
-                  onChange={(e) => setMethod(e.target.value as any)}
-                  className="w-full px-3 py-2 bg-secondary border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="UPI">UPI</option>
-                  <option value="CASH">Cash</option>
-                  <option value="CARD">Card</option>
-                  <option value="BANK_TRANSFER">Bank Transfer</option>
-                  <option value="OTHER">Other</option>
-                </select>
-              </div>
+                  <div className="pt-2 border-t border-[#273647] flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-lg bg-[#1c2b3c] border border-[#273647] text-[#d4e4fa] font-bold text-[10px]">
+                        {p.method}
+                      </span>
+                      {p.invoiceId?.invoiceNumber && (
+                        <span className="font-mono text-[#958ea0] text-[10px]">
+                          {p.invoiceId.invoiceNumber}
+                        </span>
+                      )}
+                      {p.reference && (
+                        <span className="font-mono text-[#958ea0] text-[10px] truncate max-w-[100px]">
+                          Ref: {p.reference}
+                        </span>
+                      )}
+                    </div>
 
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Transaction Ref (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. UPI-123456789"
-                  value={reference}
-                  onChange={(e) => setReference(e.target.value)}
-                  className="w-full px-3 py-2 bg-secondary border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Notes (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="Additional notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-3 py-2 bg-secondary border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 bg-secondary text-foreground font-semibold rounded-xl text-sm hover:bg-secondary/80"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-xl text-sm hover:bg-primary/90 flex items-center gap-2"
-                >
-                  {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>Save Payment</span>
-                </button>
-              </div>
-            </form>
+                    <div>
+                      {maxRefundable > 0 ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openRefundModal(p);
+                          }}
+                          className="text-[10px] font-bold text-[#958ea0] hover:text-[#ffb4ab] flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-[#1c2b3c]"
+                        >
+                          <RefreshCcw className="w-3 h-3" />
+                          <span>Refund</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-bold text-[#ffb4ab] px-2 py-0.5 rounded-full bg-[#ffb4ab]/10 border border-[#ffb4ab]/20">
+                          Refunded
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Record Payment Quick Modal */}
+      <QuickActionModal
+        isOpen={showQuickModal}
+        onClose={() => {
+          setShowQuickModal(false);
+          fetchPayments();
+        }}
+        initialTab="payment"
+      />
 
       {/* Process Refund Modal */}
       {refundPaymentObj && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                <RefreshCcw className="w-5 h-5 text-destructive" />
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#122131] border border-[#273647] rounded-2xl p-4 w-full max-w-sm shadow-2xl space-y-3">
+            <div className="flex items-center justify-between border-b border-[#273647] pb-2.5">
+              <h3 className="text-sm font-bold text-[#d4e4fa] flex items-center gap-1.5">
+                <RefreshCcw className="w-4 h-4 text-[#ffb4ab]" />
                 Process Payment Refund
               </h3>
-              <button onClick={() => setRefundPaymentObj(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-5 h-5" />
+              <button onClick={() => setRefundPaymentObj(null)} className="text-[#958ea0] hover:text-[#d4e4fa]">
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {refundError && (
-              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+              <div className="p-2.5 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs">
                 {refundError}
               </div>
             )}
 
-            <div className="p-3 rounded-xl bg-secondary/30 border border-border text-xs space-y-1">
-              <div>
-                <span className="text-muted-foreground">Original Payment:</span>{' '}
-                <span className="font-bold">₹{refundPaymentObj.amount}</span> ({refundPaymentObj.method})
+            <div className="p-2.5 rounded-xl bg-[#0d1c2d] border border-[#273647] text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-[#958ea0]">Original Payment:</span>
+                <span className="font-bold text-[#d4e4fa]">₹{refundPaymentObj.amount}</span>
               </div>
-              {refundPaymentObj.refundedAmount > 0 && (
-                <div>
-                  <span className="text-muted-foreground">Already Refunded:</span>{' '}
-                  <span className="font-bold text-destructive">₹{refundPaymentObj.refundedAmount}</span>
-                </div>
-              )}
-              <div>
-                <span className="text-muted-foreground">Max Refundable Balance:</span>{' '}
-                <span className="font-bold text-emerald-400">
+              <div className="flex justify-between">
+                <span className="text-[#958ea0]">Max Refundable:</span>
+                <span className="font-bold text-[#4edea3]">
                   ₹{refundPaymentObj.amount - (refundPaymentObj.refundedAmount || 0)}
                 </span>
               </div>
             </div>
 
-            <form onSubmit={handleProcessRefund} className="space-y-4">
+            <form onSubmit={handleProcessRefund} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">
+                <label className="block text-[10px] font-bold text-[#958ea0] uppercase mb-1">
                   Refund Amount (₹) *
                 </label>
                 <input
@@ -452,37 +333,37 @@ export default function PaymentsPage() {
                   step="any"
                   value={refundAmount}
                   onChange={(e) => setRefundAmount(e.target.value)}
-                  className="w-full px-3 py-2 bg-secondary border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono font-bold"
+                  className="w-full px-2.5 py-1.5 bg-[#1c2b3c] border border-[#273647] rounded-xl text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff] font-mono font-bold"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">
-                  Refund Reason / Notes
+                <label className="block text-[10px] font-bold text-[#958ea0] uppercase mb-1">
+                  Reason / Notes
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Member cancellation request"
+                  placeholder="e.g. Member cancellation"
                   value={refundNotes}
                   onChange={(e) => setRefundNotes(e.target.value)}
-                  className="w-full px-3 py-2 bg-secondary border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-2.5 py-1.5 bg-[#1c2b3c] border border-[#273647] rounded-xl text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
                 />
               </div>
 
-              <div className="pt-2 flex justify-end gap-3">
+              <div className="pt-2 border-t border-[#273647] flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setRefundPaymentObj(null)}
-                  className="px-4 py-2 bg-secondary text-foreground font-semibold rounded-xl text-sm hover:bg-secondary/80"
+                  className="px-3 py-1.5 bg-[#1c2b3c] text-[#958ea0] hover:text-[#d4e4fa] font-semibold rounded-xl text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={refunding}
-                  className="px-5 py-2 bg-destructive text-destructive-foreground font-semibold rounded-xl text-sm hover:bg-destructive/90 flex items-center gap-2"
+                  className="px-4 py-1.5 bg-[#ffb4ab] text-[#690005] font-extrabold rounded-xl text-xs hover:bg-[#ffb4ab]/90 flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  {refunding && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {refunding && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <span>Confirm Refund</span>
                 </button>
               </div>
@@ -490,8 +371,6 @@ export default function PaymentsPage() {
           </div>
         </div>
       )}
-
-      <BottomNav />
-    </div>
+    </AppShell>
   );
 }

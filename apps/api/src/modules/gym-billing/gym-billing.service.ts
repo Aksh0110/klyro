@@ -463,10 +463,14 @@ export class GymBillingService {
       invoiceMatch.branchId = bId;
     }
 
-    if (queryDto.from || queryDto.to) {
+    if ((queryDto.from && !isNaN(new Date(queryDto.from).getTime())) || (queryDto.to && !isNaN(new Date(queryDto.to).getTime()))) {
       paymentMatch.paidAt = {};
-      if (queryDto.from) paymentMatch.paidAt.$gte = new Date(queryDto.from);
-      if (queryDto.to) paymentMatch.paidAt.$lte = new Date(queryDto.to);
+      if (queryDto.from && !isNaN(new Date(queryDto.from).getTime())) {
+        paymentMatch.paidAt.$gte = new Date(queryDto.from);
+      }
+      if (queryDto.to && !isNaN(new Date(queryDto.to).getTime())) {
+        paymentMatch.paidAt.$lte = new Date(queryDto.to);
+      }
     }
 
     const successfulPayments = await this.paymentModel.find(paymentMatch).exec();
