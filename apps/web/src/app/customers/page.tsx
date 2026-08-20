@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/lib/auth-context';
 import { apiRequest } from '@/lib/api';
@@ -20,6 +21,7 @@ import {
 import { QuickActionModal } from '@/components/QuickActionModal';
 
 export default function CustomersPage() {
+  const router = useRouter();
   const { activeOrgId } = useAuth();
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [search, setSearch] = useState('');
@@ -130,17 +132,19 @@ export default function CustomersPage() {
               return (
                 <div
                   key={c._id}
-                  className="p-4 rounded-2xl bg-[#122131] border border-[#273647] space-y-3 shadow-sm hover:border-[#d0bcff]/40 transition-all"
+                  onClick={() => router.push(`/customers/${c._id}`)}
+                  className="p-4 rounded-2xl bg-[#122131] border border-[#273647] space-y-3 shadow-sm hover:border-[#d0bcff]/40 transition-all cursor-pointer group"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#1c2b3c] border border-[#273647] text-[#d4e4fa] flex items-center justify-center font-bold text-xs">
+                      <div className="w-10 h-10 rounded-full bg-[#1c2b3c] border border-[#273647] text-[#d4e4fa] flex items-center justify-center font-bold text-xs group-hover:border-[#d0bcff]/50 transition-colors">
                         {c.firstName.charAt(0)}
                         {c.lastName ? c.lastName.charAt(0) : ''}
                       </div>
                       <div>
-                        <h3 className="font-bold text-sm text-[#d4e4fa]">
-                          {c.firstName} {c.lastName || ''}
+                        <h3 className="font-bold text-sm text-[#d4e4fa] group-hover:text-[#d0bcff] transition-colors flex items-center gap-1.5">
+                          <span>{c.firstName} {c.lastName || ''}</span>
+                          <ChevronRight className="w-3.5 h-3.5 text-[#958ea0] opacity-0 group-hover:opacity-100 transition-opacity" />
                         </h3>
                         <p className="text-[11px] text-[#958ea0] font-mono">{c.customerCode || 'CUST-1001'}</p>
                       </div>
@@ -161,11 +165,11 @@ export default function CustomersPage() {
                   <div className="pt-2 border-t border-[#273647] flex items-center justify-between text-xs">
                     <div>
                       <p className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider">Plan</p>
-                      <p className="font-semibold text-[#d4e4fa]">Starter • 92d left</p>
+                      <p className="font-semibold text-[#d4e4fa]">Starter • Active</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider">Due</p>
-                      <p className="font-bold text-[#ffb95f]">₹1,800</p>
+                      <p className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider">Phone</p>
+                      <p className="font-bold text-[#d4e4fa] font-mono">{c.phone}</p>
                     </div>
                   </div>
 
@@ -173,7 +177,8 @@ export default function CustomersPage() {
                   <div className="pt-1">
                     {isDue ? (
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setQuickTab('payment');
                           setShowQuickModal(true);
                         }}
@@ -184,7 +189,8 @@ export default function CustomersPage() {
                       </button>
                     ) : isExpiringSoon ? (
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setQuickTab('renew');
                           setShowQuickModal(true);
                         }}
@@ -195,7 +201,8 @@ export default function CustomersPage() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setQuickTab('announcement');
                           setShowQuickModal(true);
                         }}

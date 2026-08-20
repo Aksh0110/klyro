@@ -44,6 +44,7 @@ export async function apiRequest<T>(
 
   if (organizationId) {
     headers['x-organization-id'] = organizationId;
+    headers['x-tenant-id'] = organizationId;
   }
 
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
