@@ -30,7 +30,7 @@ services:
       JWT_REFRESH_SECRET: super_secret_klyro_jwt_refresh_key_dev_mode_only_987654321
       DEV_OTP_ENABLED: 'true'
       DEFAULT_DEV_OTP: '123456'
-      CORS_ORIGIN: http://localhost:3000
+      CORS_ORIGIN: http://88.222.214.99:3001
     depends_on:
       - mongodb
     networks:
@@ -43,10 +43,10 @@ services:
     container_name: klyro-web
     restart: always
     ports:
-      - '3000:3000'
+      - '3001:3000'
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+      NEXT_PUBLIC_API_URL: http://88.222.214.99:4000/api/v1
     depends_on:
       - api
     networks:
