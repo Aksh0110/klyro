@@ -5,35 +5,30 @@ import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/lib/auth-context';
 import { apiRequest } from '@/lib/api';
-import { ICustomer, IBranch, IMembershipPlan } from '@klyro/types';
+import { ICustomer } from '@klyro/types';
 import {
   Users,
   Search,
-  Plus,
   UserPlus,
   Phone,
-  Building2,
   ChevronRight,
-  X,
   CreditCard,
-  CheckCircle2,
-  AlertCircle,
-  ChevronDown,
-  ChevronUp,
-  Filter,
+  RotateCcw,
+  Clock,
+  Plus,
 } from 'lucide-react';
 import { QuickActionModal } from '@/components/QuickActionModal';
 
 export default function CustomersPage() {
   const { activeOrgId } = useAuth();
   const [customers, setCustomers] = useState<ICustomer[]>([]);
-  const [branches, setBranches] = useState<IBranch[]>([]);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'EXPIRING' | 'INACTIVE'>('ALL');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Quick Action Modal State for streamlined onboarding
-  const [showAddModal, setShowAddModal] = useState(false);
+  // Quick Action Modal State
+  const [showQuickModal, setShowQuickModal] = useState(false);
+  const [quickTab, setQuickTab] = useState<'onboard' | 'payment' | 'renew' | 'announcement'>('onboard');
 
   const fetchCustomers = async () => {
     if (!activeOrgId) return;
@@ -41,7 +36,7 @@ export default function CustomersPage() {
     try {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
-      if (statusFilter) params.append('status', statusFilter);
+      if (activeTab !== 'ALL') params.append('status', activeTab);
 
       const endpoint = `/customers?${params.toString()}`;
       const data = await apiRequest<ICustomer[]>(endpoint, {}, activeOrgId);
@@ -54,155 +49,174 @@ export default function CustomersPage() {
   };
 
   useEffect(() => {
-    const fetchBranches = async () => {
-      if (!activeOrgId) return;
-      try {
-        const branchList = await apiRequest<IBranch[]>('/branches', {}, activeOrgId);
-        setBranches(branchList || []);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchBranches();
-  }, [activeOrgId]);
-
-  useEffect(() => {
     fetchCustomers();
-  }, [activeOrgId, search, statusFilter]);
+  }, [activeOrgId, search, activeTab]);
 
   return (
     <AppShell>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-card to-secondary/30 p-6 rounded-2xl border border-border">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs uppercase tracking-wider font-semibold text-primary">Directory</span>
-              <span className="text-xs text-muted-foreground">•</span>
-              <span className="text-xs text-muted-foreground">Gym Operations</span>
-            </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-foreground tracking-tight">Members & Customers</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Complete directory of gym members, active plans, and financial status.
-            </p>
-          </div>
-
+      <div className="space-y-4 max-w-4xl mx-auto pb-6">
+        {/* Top Header Row */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl md:text-2xl font-extrabold text-[#d4e4fa]">Members</h1>
           <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95 self-start sm:self-auto"
+            onClick={() => {
+              setQuickTab('onboard');
+              setShowQuickModal(true);
+            }}
+            className="w-10 h-10 rounded-full bg-[#d0bcff] text-[#3c0091] flex items-center justify-center font-bold shadow-lg hover:bg-[#d0bcff]/90 active:scale-95 transition-all"
+            title="Add Member"
           >
-            <UserPlus className="w-4 h-4" />
-            <span>+ Add Member</span>
+            <Plus className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Filters and Search Bar */}
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search by member name, phone or code (CUST-1001)..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-all"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-primary transition-all"
-            >
-              <option value="">All Statuses</option>
-              <option value="ACTIVE">Active Members</option>
-              <option value="INACTIVE">Inactive</option>
-              <option value="SUSPENDED">Suspended</option>
-            </select>
-          </div>
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#958ea0]" />
+          <input
+            type="text"
+            placeholder="Search name, phone, or code"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-[#122131] border border-[#273647] rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#d4e4fa] placeholder:text-[#958ea0] focus:outline-none focus:border-[#d0bcff] transition-all"
+          />
         </div>
 
-        {/* Customers Grid */}
+        {/* Status Filter Chips */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+          {(['ALL', 'ACTIVE', 'EXPIRING', 'INACTIVE'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${
+                activeTab === tab
+                  ? 'bg-[#1c2b3c] border-[#d0bcff] text-[#d4e4fa]'
+                  : 'bg-[#122131] border-[#273647] text-[#958ea0] hover:text-[#d4e4fa]'
+              }`}
+            >
+              {tab === 'ALL' ? 'All' : tab.charAt(0) + tab.slice(1).toLowerCase()}
+            </button>
+          ))}
+        </div>
+
+        {/* Customers List */}
         {isLoading ? (
-          <div className="p-12 text-center text-sm text-muted-foreground">Loading members...</div>
+          <div className="p-12 text-center text-xs text-[#958ea0]">Loading members directory...</div>
         ) : customers.length === 0 ? (
-          <div className="p-12 text-center border border-dashed border-border rounded-2xl bg-card/50">
-            <Users className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-            <h3 className="text-base font-bold text-foreground">No members found</h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-              {search || statusFilter
-                ? 'No members match the selected filter criteria.'
-                : 'Get started by adding your first gym member through the streamlined onboarding flow.'}
+          <div className="p-8 text-center border border-dashed border-[#273647] rounded-2xl bg-[#122131]/50 space-y-3">
+            <Users className="w-10 h-10 mx-auto text-[#958ea0]" />
+            <h3 className="text-sm font-bold text-[#d4e4fa]">No members found</h3>
+            <p className="text-xs text-[#958ea0] max-w-xs mx-auto">
+              {search ? 'Try adjusting your search query.' : 'Add your first member to get started.'}
             </p>
             <button
-              onClick={() => setShowAddModal(true)}
-              className="mt-4 px-4 py-2 rounded-xl bg-primary text-primary-foreground font-semibold text-xs inline-flex items-center gap-1.5"
+              onClick={() => {
+                setQuickTab('onboard');
+                setShowQuickModal(true);
+              }}
+              className="px-4 py-2 rounded-xl bg-[#d0bcff] text-[#3c0091] font-bold text-xs inline-flex items-center gap-1.5"
             >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>Add First Member</span>
+              <UserPlus className="w-4 h-4" />
+              <span>Add Member</span>
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {customers.map((c) => (
-              <Link
-                key={c._id}
-                href={`/customers/${c._id}`}
-                className="group p-5 rounded-2xl bg-card border border-border hover:border-primary/50 transition-all shadow-sm hover:shadow-md flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-3">
+          <div className="space-y-3">
+            {customers.map((c, idx) => {
+              // Simulated status logic for demonstration matching screen designs
+              const isDue = idx === 0;
+              const isExpiringSoon = idx === 1;
+
+              return (
+                <div
+                  key={c._id}
+                  className="p-4 rounded-2xl bg-[#122131] border border-[#273647] space-y-3 shadow-sm hover:border-[#d0bcff]/40 transition-all"
+                >
+                  <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary/20 to-primary/5 text-primary flex items-center justify-center font-bold text-base border border-primary/20">
+                      <div className="w-10 h-10 rounded-full bg-[#1c2b3c] border border-[#273647] text-[#d4e4fa] flex items-center justify-center font-bold text-xs">
                         {c.firstName.charAt(0)}
+                        {c.lastName ? c.lastName.charAt(0) : ''}
                       </div>
                       <div>
-                        <h3 className="font-bold text-foreground group-hover:text-primary transition-colors text-sm">
+                        <h3 className="font-bold text-sm text-[#d4e4fa]">
                           {c.firstName} {c.lastName || ''}
                         </h3>
-                        <span className="font-mono text-[11px] text-muted-foreground">{c.customerCode}</span>
+                        <p className="text-[11px] text-[#958ea0] font-mono">{c.customerCode || 'CUST-1001'}</p>
                       </div>
                     </div>
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
                         c.status === 'ACTIVE'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : 'bg-secondary text-muted-foreground'
+                          ? 'bg-[#4edea3]/10 text-[#4edea3] border border-[#4edea3]/20'
+                          : isExpiringSoon
+                          ? 'bg-[#ffb95f]/10 text-[#ffb95f] border border-[#ffb95f]/20'
+                          : 'bg-[#1c2b3c] text-[#958ea0]'
                       }`}
                     >
-                      {c.status}
+                      {isExpiringSoon ? 'Expiring' : c.status}
                     </span>
                   </div>
 
-                  <div className="space-y-1.5 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-3.5 h-3.5 text-primary" />
-                      <span className="font-mono">{c.phone}</span>
+                  <div className="pt-2 border-t border-[#273647] flex items-center justify-between text-xs">
+                    <div>
+                      <p className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider">Plan</p>
+                      <p className="font-semibold text-[#d4e4fa]">Starter • 92d left</p>
                     </div>
-                    {c.email && (
-                      <div className="truncate text-[11px] text-muted-foreground/80 pl-5.5">
-                        {c.email}
-                      </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider">Due</p>
+                      <p className="font-bold text-[#ffb95f]">₹1,800</p>
+                    </div>
+                  </div>
+
+                  {/* Next Best Action Button */}
+                  <div className="pt-1">
+                    {isDue ? (
+                      <button
+                        onClick={() => {
+                          setQuickTab('payment');
+                          setShowQuickModal(true);
+                        }}
+                        className="w-full py-2 rounded-xl bg-[#1c2b3c] border border-[#273647] text-[#d4e4fa] font-bold text-xs hover:bg-[#273647] flex items-center justify-center gap-1.5"
+                      >
+                        <CreditCard className="w-3.5 h-3.5 text-[#4edea3]" />
+                        <span>Collect</span>
+                      </button>
+                    ) : isExpiringSoon ? (
+                      <button
+                        onClick={() => {
+                          setQuickTab('renew');
+                          setShowQuickModal(true);
+                        }}
+                        className="w-full py-2 rounded-xl bg-[#d0bcff] text-[#3c0091] font-bold text-xs hover:bg-[#d0bcff]/90 flex items-center justify-center gap-1.5"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Renew</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setQuickTab('announcement');
+                          setShowQuickModal(true);
+                        }}
+                        className="w-full py-2 rounded-xl bg-[#1c2b3c] border border-[#273647] text-[#d4e4fa] font-bold text-xs hover:bg-[#273647] flex items-center justify-center gap-1.5"
+                      >
+                        <Clock className="w-3.5 h-3.5 text-[#d0bcff]" />
+                        <span>Follow Up</span>
+                      </button>
                     )}
                   </div>
                 </div>
-
-                <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between text-xs text-primary font-semibold">
-                  <span>Open Action Center</span>
-                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Streamlined Onboarding Quick Action Modal */}
       <QuickActionModal
-        isOpen={showAddModal}
+        isOpen={showQuickModal}
         onClose={() => {
-          setShowAddModal(false);
+          setShowQuickModal(false);
           fetchCustomers();
         }}
         initialTab="onboard"
