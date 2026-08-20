@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, IsDateString, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, IsDateString, Min, Matches, Length } from 'class-validator';
 
 export enum ONBOARD_PAYMENT_MODE {
   PAY_NOW = 'PAY_NOW',
@@ -17,6 +17,8 @@ export class OnboardMemberDto {
 
   @IsString()
   @IsNotEmpty()
+  @Length(10, 10, { message: 'Mobile number must be standard 10 digits' })
+  @Matches(/^[6-9]\d{9}$/, { message: 'Mobile number must be a valid 10-digit Indian mobile number' })
   phone: string;
 
   @IsString()

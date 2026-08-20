@@ -113,6 +113,13 @@ export class GymWorkflowService {
   async onboardMember(organizationId: string, dto: OnboardMemberDto, recordedByUserId?: string) {
     const orgObjId = new Types.ObjectId(organizationId);
 
+    // Sanitize & validate phone
+    const cleanedPhone = dto.phone ? dto.phone.replace(/\D/g, '') : '';
+    if (cleanedPhone.length !== 10) {
+      throw new BadRequestException('Mobile number must be a standard 10-digit number.');
+    }
+    dto.phone = cleanedPhone;
+
     // 1. Duplicate check
     const existing = await this.checkDuplicatePhone(organizationId, dto.phone);
     if (existing.exists) {

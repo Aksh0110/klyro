@@ -74,4 +74,5 @@ export const CustomerSchema = SchemaFactory.createForClass(Customer);
 
 // Compound index for tenant uniqueness of customerCode and phone
 CustomerSchema.index({ organizationId: 1, customerCode: 1 }, { unique: true });
-CustomerSchema.index({ organizationId: 1, phone: 1 });
+CustomerSchema.index({ organizationId: 1, phone: 1 }, { unique: true });
+
