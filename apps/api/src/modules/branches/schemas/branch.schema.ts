@@ -5,6 +5,26 @@ import { OrganizationAddress, OrganizationAddressSchema } from '../../organizati
 
 export type BranchDocument = Branch & Document;
 
+@Schema({ _id: false })
+export class BranchLocation {
+  @Prop({ type: Number })
+  latitude?: number;
+
+  @Prop({ type: Number })
+  longitude?: number;
+}
+export const BranchLocationSchema = SchemaFactory.createForClass(BranchLocation);
+
+@Schema({ _id: false })
+export class BranchSettings {
+  @Prop({ type: Boolean, default: false })
+  memberSelfCheckInEnabled!: boolean;
+
+  @Prop({ type: Number, default: 100 })
+  selfCheckInRadiusMeters!: number;
+}
+export const BranchSettingsSchema = SchemaFactory.createForClass(BranchSettings);
+
 @Schema({ timestamps: true, collection: 'branches' })
 export class Branch {
   @Prop({ type: Types.ObjectId, ref: 'Organization', required: true, index: true })
@@ -21,6 +41,12 @@ export class Branch {
 
   @Prop({ type: OrganizationAddressSchema })
   address?: OrganizationAddress;
+
+  @Prop({ type: BranchLocationSchema, default: {} })
+  location?: BranchLocation;
+
+  @Prop({ type: BranchSettingsSchema, default: { memberSelfCheckInEnabled: false, selfCheckInRadiusMeters: 100 } })
+  settings?: BranchSettings;
 }
 
 export const BranchSchema = SchemaFactory.createForClass(Branch);

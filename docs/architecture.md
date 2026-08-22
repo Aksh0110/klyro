@@ -1,14 +1,14 @@
-# Klyro Architecture & Design Specification (Milestones 1, 2 & 3)
+# Klyro Architecture & Design Specification (Milestones 1, 2, 3 & 4)
 
-This document provides a comprehensive breakdown of the platform architecture, multi-tenancy model, RBAC permission hierarchy, authentication lifecycle, API response contracts, and database schema scoping.
+This document provides a comprehensive breakdown of the platform architecture, multi-tenancy model, RBAC permission hierarchy, authentication lifecycle, API response contracts, database schema scoping, and GPS self check-in operations.
 
 ---
 
 ## 1. Architectural Philosophy & Vertical Neutrality
 
-Klyro is engineered from day one as a vertical-neutral SaaS platform. While **Klyro Gym** is the primary vertical delivered, the platform primitives (`User`, `Organization`, `Branch`, `Role`, `Permission`, `Customer`, `MembershipPlan`, `CustomerMembership`, `Subscription`, `Invoice`, `Payment`) preserve vertical neutrality at the core.
+Klyro is engineered from day one as a vertical-neutral SaaS platform. While **Klyro Gym** is the primary vertical delivered, the platform primitives (`User`, `Organization`, `Branch`, `Role`, `Permission`, `Customer`, `MembershipPlan`, `CustomerMembership`, `Subscription`, `Invoice`, `Payment`, `Attendance`) preserve vertical neutrality at the core.
 
-Future verticals (**Klyro Salon**, **Klyro Studio**, **Klyro Academy**) re-use the core authentication, multi-tenancy guards, customer directory structure, subscription entitlement engine, and RBAC matrix.
+Future verticals (**Klyro Salon**, **Klyro Studio**, **Klyro Academy**) re-use the core authentication, multi-tenancy guards, customer directory structure, subscription entitlement engine, attendance engine, and RBAC matrix.
 
 ```
                   ┌─────────────────────────────────────┐
@@ -65,6 +65,18 @@ SubscriptionMandate                       Invoice (INV-1001)
 - `payments`: `organizationId`, `branchId`, `customerId`, `invoiceId`, `membershipId`, `amount`, `method` (`CASH`, `UPI`, `CARD`, `BANK_TRANSFER`, `OTHER`), `status` (`SUCCESS`, `REFUNDED`), `reference`, `notes`, `paidAt`, `recordedBy`.
 - `counters`: Atomic tenant sequence tracking for concurrency-safe invoice numbering.
 
+### 3.3 Milestone 4: Daily Operations & GPS Attendance Collections
+- `branches`: Extended with `location` (`latitude`, `longitude`) and `settings` (`memberSelfCheckInEnabled` default `false`, `selfCheckInRadiusMeters` default `100`).
+- `attendances`: `organizationId`, `branchId`, `customerId`, `membershipId`, `attendanceDate` (server timezone `Asia/Kolkata` formatted `YYYY-MM-DD`), `checkInAt`, `checkOutAt`, `source` (`GPS_SELF_CHECKIN`), `latitude`, `longitude`, `accuracyMeters`, `recordedBy`.
+  - Compound Unique Index: `{ organizationId: 1, customerId: 1, attendanceDate: 1 }`.
+
+### 3.4 Milestone 5: Communications, Notifications & Retention Collections
+- `announcements`: `organizationId`, `branchId?`, `createdBy`, `title`, `body`, `audienceType` (`ALL_MEMBERS`, `BRANCH_MEMBERS`), `status` (`DRAFT`, `SCHEDULED`, `PUBLISHED`, `CANCELLED`), `channels` (`IN_APP`, `WEB_PUSH`, `WHATSAPP`), `scheduledAt?`, `publishedAt?`.
+- `notifications`: `organizationId`, `recipientUserId`, `customerId?`, `type` (`ANNOUNCEMENT`, `MEMBERSHIP_EXPIRING`, `MEMBERSHIP_EXPIRED`, `MEMBERSHIP_ACTIVATED`, `INVOICE_DUE`, `INVOICE_OVERDUE`, `PAYMENT_RECEIVED`, `MEMBER_INACTIVE`, `WELCOME`, `SYSTEM`), `title`, `body`, `status` (`PENDING`, `SENT`, `DELIVERED`, `FAILED`, `READ`), `announcementId?`, `metadata?`, `eventKey?`, `scheduledAt?`, `sentAt?`, `readAt?`.
+  - Compound Unique Index on `eventKey`: `{ organizationId: 1, eventKey: 1 }` for idempotency & duplicate-prevention.
+- `notificationDeliveries`: `organizationId`, `notificationId`, `channel` (`IN_APP`, `WEB_PUSH`, `WHATSAPP`, `SMS`, `EMAIL`), `status` (`PENDING`, `SENT`, `DELIVERED`, `FAILED`), `providerMessageId?`, `errorDetails?`, `sentAt?`.
+- `notificationPreferences`: `organizationId`, `userId`, `membershipReminders`, `paymentNotifications`, `announcements`, `webPushSubscription`.
+
 ---
 
 ## 4. RBAC Permission Matrix
@@ -80,16 +92,47 @@ SubscriptionMandate                       Invoice (INV-1001)
 | `payment:create` | ✅ | ✅ | ✅ | ❌ | ❌ |
 | `payment:refund` | ✅ | ✅ | ❌ | ❌ | ❌ |
 | `financial_summary:read` | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `attendance:self_checkin` | ✅ | ✅ | ❌ | ❌ | ✅ |
+| `attendance:read:own` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `attendance:read` | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `attendance:summary` | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `announcement:read` | ✅ | ✅ | ❌ | ❌ | ✅ |
+| `announcement:create` | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `announcement:update` | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `announcement:publish` | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `announcement:cancel` | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `notification:read` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `notification:manage` | ✅ | ✅ | ❌ | ❌ | ❌ |
 
 ---
 
-## 5. Milestone 3 Financial Workflow Rules
+## 5. Milestone 5 Communications & Provider Architecture
 
-1. **Membership / Invoice Separation**: Assigning a customer membership (`POST /api/v1/memberships`) creates ONLY the `CustomerMembership` record. **Membership assignment does NOT automatically create an invoice.**
-2. **Explicit Invoice Creation**: Invoices are created as an explicit owner/manager business action via `POST /api/v1/invoices`. An invoice can optionally reference a `membershipId` (`source = MEMBERSHIP`) or exist independently (`source = OTHER`).
-3. **Independent Amount Rules**: The invoice amount is authoritative and stored independently. Subtotal, discount amount, and total amount are explicitly set upon invoice creation, allowing negotiated rates, discounts, or complimentary access without altering plan price defaults.
-4. **Customer-Centric Payment Workflow**: The primary payment workflow originates from `/customers/[id]`. Owners can click **[ Create Invoice ]** (preselecting customer and active membership) or **[ Record Payment ]** (preselecting customer, invoice, and remaining outstanding balance).
-5. **Strict Payment Ownership Validation**: Backend verifies `Invoice.organizationId == tenantContext.organizationId`, `Customer.organizationId == tenantContext.organizationId`, `Invoice.customerId == payment.customerId`, and `Invoice.membershipId == payment.membershipId`.
-6. **Overpayment Protection**: Server-side calculation engine rejects overpayments exceeding remaining invoice balance with `400 Bad Request`. Partial payments transition status to `PARTIALLY_PAID`, full payments to `PAID`.
-7. **Refund Balance Restoration**: Refunding a payment marks it `REFUNDED` and restores the invoice's outstanding balance and status (`OPEN` or `PARTIALLY_PAID`). Refunded payments are excluded from `totalCollected` in `GET /api/v1/financial-summary`.
-8. **Idempotent Invoice Backfill Script**: `npm run backfill:invoices --workspace=api` remains available for legacy data migration where explicit invoice generation is desired.
+1. **Provider Abstraction**: Interfaced via `INotificationProvider` (`InAppProvider`, `WebPushProvider`, and `WhatsAppProviderStub`).
+2. **Audience Resolution**: Resolves eligible User/Customer IDs dynamically for `ALL_MEMBERS` or `BRANCH_MEMBERS` within `organizationId` and `branchId`.
+3. **Idempotency Engine**: Enforces deterministic keys (`expiring:7d:cust:mem:date`, `invoice:overdue:inv:date`) to guarantee notifications are sent exactly once per business event.
+4. **Retention Engine**: Aggregates `expiringMemberships`, `overdueInvoices`, `inactiveMembers` (7d+ without visit) into actionable `RetentionAttentionSummary` cards for gym owners.
+
+
+---
+
+## 5. Milestone 4 GPS Self Check-In Architectural Specifications
+
+1. **Member PWA Self Check-In Flow**:
+   ```
+   Member opens Klyro Mobile PWA → Tap [ CHECK IN ] → Request Browser Geolocation (Intentional action)
+         → Post { latitude, longitude, accuracyMeters } to POST /api/v1/attendance/self-check-in
+         → Server derives Customer from authenticated User
+         → Server checks branch.settings.memberSelfCheckInEnabled == true
+         → Server evaluates MembershipAccessService (ACTIVE allowed, EXPIRED rejected)
+         → Server calculates Haversine distance from Branch coordinates & checks accuracy
+         → Server enforces idempotent same-day check-in per customer
+         → Attendance record saved with source = GPS_SELF_CHECKIN
+   ```
+2. **Branch Location Requirement**: `memberSelfCheckInEnabled` cannot be toggled `true` unless branch `latitude` and `longitude` are set.
+3. **Haversine Distance Validation**:
+   $$\text{distance} = 2 \cdot R \cdot \arcsin\left(\sqrt{\sin^2\left(\frac{\Delta \phi}{2}\right) + \cos(\phi_1)\cos(\phi_2)\sin^2\left(\frac{\Delta \lambda}{2}\right)}\right)$$
+   Server calculates distance authoritatively and compares against `selfCheckInRadiusMeters` (default 100m).
+4. **Zero Hardware Scope Constraint**: V1 relies strictly on standard mobile PWA geolocation. Turnstiles, RFID, biometrics, manual staff check-in, and native apps are excluded.
+5. **Default Timezone**: All date boundaries, attendance dating, and daily summaries use **Indian Standard Time (`Asia/Kolkata`)** by default without unnecessary settings or configuration overhead.
+

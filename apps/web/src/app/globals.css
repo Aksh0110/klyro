@@ -4,33 +4,33 @@
 
 @layer base {
   :root {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    --background: 211 75% 8%;
+    --foreground: 215 83% 91%;
 
-    --card: 217 33% 17%;
-    --card-foreground: 210 40% 98%;
+    --card: 211 46% 13%;
+    --card-foreground: 215 83% 91%;
 
-    --popover: 217 33% 17%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 211 36% 18%;
+    --popover-foreground: 215 83% 91%;
 
-    --primary: 252 87% 67%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 258 100% 87%;
+    --primary-foreground: 265 100% 28%;
 
-    --secondary: 217 19% 27%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 211 36% 18%;
+    --secondary-foreground: 215 83% 91%;
 
-    --muted: 217 19% 27%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 211 36% 18%;
+    --muted-foreground: 263 9% 59%;
 
-    --accent: 252 87% 67%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 258 100% 74%;
+    --accent-foreground: 265 100% 28%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 6 100% 83%;
+    --destructive-foreground: 357 100% 21%;
 
-    --border: 217 19% 27%;
-    --input: 217 19% 27%;
-    --ring: 252 87% 67%;
+    --border: 212 29% 22%;
+    --input: 211 36% 18%;
+    --ring: 258 100% 87%;
 
     --radius: 0.75rem;
   }
@@ -45,3 +45,14 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+

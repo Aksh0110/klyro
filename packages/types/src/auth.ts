@@ -32,6 +32,7 @@ export interface SendOtpResponseData {
 
 export interface TenantContext {
   organizationId: string;
+  branchId?: string;
   role: RoleType;
   userId: string;
 }

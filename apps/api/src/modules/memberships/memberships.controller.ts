@@ -55,4 +55,14 @@ export class MembershipsController {
   ) {
     return this.membershipsService.updateMembershipStatus(id, tenantContext.organizationId, dto);
   }
+
+  @Patch(':id')
+  @RequirePermissions(PERMISSIONS.MEMBERSHIP_UPDATE)
+  async updateMembership(
+    @GetTenantContext() tenantContext: TenantContext,
+    @Param('id') id: string,
+    @Body() dto: any,
+  ) {
+    return this.membershipsService.updateMembershipDetails(id, tenantContext.organizationId, dto);
+  }
 }

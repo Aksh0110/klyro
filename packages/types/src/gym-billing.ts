@@ -17,6 +17,7 @@ export interface IInvoice {
   subtotal: number;
   discountAmount: number;
   totalAmount: number;
+  paidAmount?: number;
   currency: string;
   status: InvoiceStatusType;
   source: InvoiceSourceType;
@@ -34,6 +35,7 @@ export interface IPayment {
   invoiceId: string | IInvoice;
   membershipId?: string | ICustomerMembership;
   amount: number;
+  refundedAmount?: number;
   currency: string;
   method: PaymentMethodType;
   status: PaymentStatusType;

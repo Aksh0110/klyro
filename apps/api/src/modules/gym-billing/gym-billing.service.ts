@@ -82,6 +82,16 @@ export class GymBillingService {
 
       membershipObjectId = membership._id;
       source = INVOICE_SOURCE.MEMBERSHIP;
+
+      // Idempotent check: if invoice already exists for this membership, return it
+      const existing = await this.invoiceModel
+        .findOne({ organizationId: orgObjectId, membershipId: membershipObjectId, source: INVOICE_SOURCE.MEMBERSHIP })
+        .exec();
+
+      if (existing) {
+        this.logger.log(`Invoice already exists for membership ${dto.membershipId}: ${existing.invoiceNumber}`);
+        return existing;
+      }
     }
 
     const discountAmount = dto.discountAmount !== undefined ? dto.discountAmount : 0;
@@ -89,24 +99,35 @@ export class GymBillingService {
     const issuedAt = new Date();
     const invoiceDueAt = dto.dueAt ? new Date(dto.dueAt) : new Date(issuedAt.getTime() + 7 * 86400000);
 
-    const invoice = await this.invoiceModel.create({
-      organizationId: orgObjectId,
-      branchId: new Types.ObjectId(branchId),
-      customerId: customer._id,
-      membershipId: membershipObjectId,
-      invoiceNumber,
-      subtotal: dto.subtotal,
-      discountAmount,
-      totalAmount: dto.totalAmount,
-      currency: 'INR',
-      status: INVOICE_STATUS.OPEN,
-      source,
-      issuedAt,
-      dueAt: invoiceDueAt,
-      notes: dto.notes,
-    });
+    try {
+      const invoice = await this.invoiceModel.create({
+        organizationId: orgObjectId,
+        branchId: new Types.ObjectId(branchId),
+        customerId: customer._id,
+        membershipId: membershipObjectId,
+        invoiceNumber,
+        subtotal: dto.subtotal,
+        discountAmount,
+        totalAmount: dto.totalAmount,
+        paidAmount: 0,
+        currency: 'INR',
+        status: INVOICE_STATUS.OPEN,
+        source,
+        issuedAt,
+        dueAt: invoiceDueAt,
+        notes: dto.notes,
+      });
 
-    return invoice;
+      return invoice;
+    } catch (err: any) {
+      if ((err.code === 11000 || err.message?.includes('E11000')) && membershipObjectId) {
+        const found = await this.invoiceModel
+          .findOne({ organizationId: orgObjectId, membershipId: membershipObjectId, source: INVOICE_SOURCE.MEMBERSHIP })
+          .exec();
+        if (found) return found;
+      }
+      throw err;
+    }
   }
 
   async createInvoiceForMembership(
@@ -148,6 +169,7 @@ export class GymBillingService {
             subtotal: amount,
             discountAmount: 0,
             totalAmount: amount,
+            paidAmount: 0,
             currency: 'INR',
             status: INVOICE_STATUS.OPEN,
             source: INVOICE_SOURCE.MEMBERSHIP,
@@ -161,7 +183,7 @@ export class GymBillingService {
       return docs[0];
     } catch (err: any) {
       // Duplicate key error handler (code 11000)
-      if (err.code === 11000) {
+      if (err.code === 11000 || err.message?.includes('E11000')) {
         const found = await this.invoiceModel
           .findOne({ organizationId: orgObjectId, membershipId: membObjectId, source: INVOICE_SOURCE.MEMBERSHIP })
           .session(session || null)
@@ -178,10 +200,32 @@ export class GymBillingService {
     status?: string,
     branchId?: string,
   ) {
-    const query: any = { organizationId: new Types.ObjectId(organizationId) };
-    if (customerId) query.customerId = new Types.ObjectId(customerId);
+    const orgObjectId = new Types.ObjectId(organizationId);
+    const query: any = { organizationId: orgObjectId };
+    if (customerId && Types.ObjectId.isValid(customerId)) query.customerId = new Types.ObjectId(customerId);
     if (status) query.status = status;
-    if (branchId) query.branchId = new Types.ObjectId(branchId);
+    if (branchId && Types.ObjectId.isValid(branchId)) query.branchId = new Types.ObjectId(branchId);
+
+    // Auto-ensure any existing customer memberships have an invoice
+    try {
+      const membFilter: any = { organizationId: orgObjectId };
+      if (customerId && Types.ObjectId.isValid(customerId)) {
+        membFilter.customerId = new Types.ObjectId(customerId);
+      }
+      const memberships = await this.membershipModel.find(membFilter).exec();
+      for (const m of memberships) {
+        await this.createInvoiceForMembership(
+          organizationId,
+          m.branchId.toString(),
+          m.customerId.toString(),
+          m._id.toString(),
+          m.price || 0,
+          m.endDate,
+        );
+      }
+    } catch (err: any) {
+      this.logger.warn(`Auto-ensuring invoices: ${err?.message || err}`);
+    }
 
     return this.invoiceModel
       .find(query)
@@ -293,10 +337,11 @@ export class GymBillingService {
       reference: dto.reference,
       notes: dto.notes,
       paidAt: new Date(),
-      recordedBy: new Types.ObjectId(userId),
+      recordedBy: userId && Types.ObjectId.isValid(userId) ? new Types.ObjectId(userId) : invoice.customerId,
     });
 
     const newTotalPaid = currentPaid + dto.amount;
+    invoice.paidAmount = newTotalPaid;
     if (newTotalPaid >= invoice.totalAmount) {
       invoice.status = INVOICE_STATUS.PAID;
     } else {
@@ -311,7 +356,13 @@ export class GymBillingService {
     };
   }
 
-  async refundPayment(organizationId: string, userId: string, paymentId: string, notes?: string) {
+  async refundPayment(
+    organizationId: string,
+    userId: string,
+    paymentId: string,
+    refundAmount?: number,
+    notes?: string,
+  ) {
     const orgObjectId = new Types.ObjectId(organizationId);
 
     const payment = await this.paymentModel
@@ -322,27 +373,51 @@ export class GymBillingService {
       throw new NotFoundException('Payment record not found');
     }
 
-    if (payment.status !== PAYMENT_STATUS.SUCCESS) {
-      throw new BadRequestException('Only successful payments can be refunded');
+    const currentRefunded = payment.refundedAmount || 0;
+    const maxRefundable = payment.amount - currentRefunded;
+
+    if (maxRefundable <= 0) {
+      throw new BadRequestException('Payment is already fully refunded');
     }
 
-    payment.status = PAYMENT_STATUS.REFUNDED;
-    if (notes) payment.notes = payment.notes ? `${payment.notes} | Refund: ${notes}` : `Refund: ${notes}`;
+    const amountToRefund = refundAmount !== undefined && refundAmount > 0 ? refundAmount : maxRefundable;
+
+    if (amountToRefund > maxRefundable) {
+      throw new BadRequestException(
+        `Refund amount ₹${amountToRefund} exceeds maximum refundable balance ₹${maxRefundable}`,
+      );
+    }
+
+    const updatedRefunded = currentRefunded + amountToRefund;
+    payment.refundedAmount = updatedRefunded;
+
+    if (updatedRefunded >= payment.amount) {
+      payment.status = PAYMENT_STATUS.REFUNDED;
+    }
+
+    const refundNote = `Refunded ₹${amountToRefund}${notes ? `: ${notes}` : ''}`;
+    payment.notes = payment.notes ? `${payment.notes} | ${refundNote}` : refundNote;
     await payment.save();
 
-    // Recalculate remaining valid payments for invoice
+    // Recalculate remaining valid net payments for invoice
     const invoice = await this.invoiceModel.findById(payment.invoiceId).exec();
     if (invoice) {
-      const remainingPayments = await this.paymentModel
-        .find({ invoiceId: invoice._id, organizationId: orgObjectId, status: PAYMENT_STATUS.SUCCESS })
+      const allPayments = await this.paymentModel
+        .find({ invoiceId: invoice._id, organizationId: orgObjectId })
         .exec();
 
-      const remainingPaid = remainingPayments.reduce((sum, p) => sum + p.amount, 0);
+      const remainingPaid = allPayments.reduce(
+        (sum, p) => sum + Math.max(0, p.amount - (p.refundedAmount || 0)),
+        0,
+      );
+      invoice.paidAmount = remainingPaid;
 
       if (remainingPaid <= 0) {
         invoice.status = INVOICE_STATUS.OPEN;
       } else if (remainingPaid < invoice.totalAmount) {
         invoice.status = INVOICE_STATUS.PARTIALLY_PAID;
+      } else {
+        invoice.status = INVOICE_STATUS.PAID;
       }
       await invoice.save();
     }
@@ -352,8 +427,8 @@ export class GymBillingService {
 
   async getPayments(organizationId: string, customerId?: string, invoiceId?: string) {
     const query: any = { organizationId: new Types.ObjectId(organizationId) };
-    if (customerId) query.customerId = new Types.ObjectId(customerId);
-    if (invoiceId) query.invoiceId = new Types.ObjectId(invoiceId);
+    if (customerId && Types.ObjectId.isValid(customerId)) query.customerId = new Types.ObjectId(customerId);
+    if (invoiceId && Types.ObjectId.isValid(invoiceId)) query.invoiceId = new Types.ObjectId(invoiceId);
 
     return this.paymentModel
       .find(query)
@@ -364,6 +439,13 @@ export class GymBillingService {
   }
 
   async getFinancialSummary(organizationId: string, queryDto: FinancialSummaryQueryDto) {
+    // Auto-ensure invoices for memberships first
+    try {
+      await this.getInvoices(organizationId, undefined, undefined, queryDto?.branchId);
+    } catch (err: any) {
+      this.logger.warn(`Failed auto-ensuring invoices during financial summary: ${err?.message || err}`);
+    }
+
     const orgObjectId = new Types.ObjectId(organizationId);
 
     const paymentMatch: any = {
@@ -375,16 +457,20 @@ export class GymBillingService {
       organizationId: orgObjectId,
     };
 
-    if (queryDto.branchId) {
+    if (queryDto.branchId && Types.ObjectId.isValid(queryDto.branchId)) {
       const bId = new Types.ObjectId(queryDto.branchId);
       paymentMatch.branchId = bId;
       invoiceMatch.branchId = bId;
     }
 
-    if (queryDto.from || queryDto.to) {
+    if ((queryDto.from && !isNaN(new Date(queryDto.from).getTime())) || (queryDto.to && !isNaN(new Date(queryDto.to).getTime()))) {
       paymentMatch.paidAt = {};
-      if (queryDto.from) paymentMatch.paidAt.$gte = new Date(queryDto.from);
-      if (queryDto.to) paymentMatch.paidAt.$lte = new Date(queryDto.to);
+      if (queryDto.from && !isNaN(new Date(queryDto.from).getTime())) {
+        paymentMatch.paidAt.$gte = new Date(queryDto.from);
+      }
+      if (queryDto.to && !isNaN(new Date(queryDto.to).getTime())) {
+        paymentMatch.paidAt.$lte = new Date(queryDto.to);
+      }
     }
 
     const successfulPayments = await this.paymentModel.find(paymentMatch).exec();
@@ -409,6 +495,7 @@ export class GymBillingService {
 
     return {
       totalCollected,
+      totalPaid: totalCollected,
       totalOutstanding,
       invoiceCount,
       paidInvoiceCount,

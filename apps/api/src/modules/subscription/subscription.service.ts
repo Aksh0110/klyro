@@ -16,8 +16,8 @@ import { Subscription, SubscriptionDocument } from './schemas/subscription.schem
 import { SubscriptionPayment, SubscriptionPaymentDocument } from './schemas/subscription-payment.schema';
 import { SubscriptionMandate, SubscriptionMandateDocument } from './schemas/subscription-mandate.schema';
 import { PaymentProvider } from './providers/payment-provider.interface';
-import { RazorpayProvider } from './providers/razorpay.provider';
 import { DevPaymentProvider } from './providers/dev-payment.provider';
+import { RazorpayProvider } from './providers/razorpay.provider';
 
 @Injectable()
 export class SubscriptionService {
@@ -34,14 +34,18 @@ export class SubscriptionService {
     @InjectModel(SubscriptionMandate.name)
     private readonly mandateModel: Model<SubscriptionMandateDocument>,
     private readonly configService: ConfigService,
-    private readonly razorpayProvider: RazorpayProvider,
     private readonly devProvider: DevPaymentProvider,
+    private readonly razorpayProvider: RazorpayProvider,
   ) {
-    const isDevMode =
-      this.configService.get<string>('KLYRO_BILLING_MODE') === 'development' ||
-      process.env.NODE_ENV !== 'production';
+    const mode =
+      this.configService.get<string>('KLYRO_BILLING_MODE') ||
+      (process.env.NODE_ENV !== 'production' ? 'development' : 'razorpay');
 
-    this.provider = isDevMode ? this.devProvider : this.razorpayProvider;
+    if (mode === 'development') {
+      this.provider = this.devProvider;
+    } else {
+      this.provider = this.razorpayProvider;
+    }
   }
 
   async onModuleInit() {
@@ -79,14 +83,64 @@ export class SubscriptionService {
     for (const plan of defaultPlans) {
       await this.planModel.updateOne(
         { code: plan.code },
-        { $setOnInsert: { ...plan, status: PLAN_STATUS.ACTIVE, currency: 'INR' } },
+        { $set: { ...plan, status: PLAN_STATUS.ACTIVE, currency: 'INR' } },
         { upsert: true },
       );
     }
   }
 
   async getSubscriptionPlans(): Promise<SubscriptionPlanDocument[]> {
-    return this.planModel.find({ status: PLAN_STATUS.ACTIVE }).exec();
+    let plans = await this.planModel.find({ status: PLAN_STATUS.ACTIVE }).exec();
+    if (!plans || plans.length === 0) {
+      await this.seedDefaultPlans();
+      plans = await this.planModel.find({ status: PLAN_STATUS.ACTIVE }).exec();
+    }
+    return plans;
+  }
+
+  async startFreeTrial(organizationId: string, planCode?: string) {
+    const orgObjectId = new Types.ObjectId(organizationId);
+
+    const plan =
+      (await this.planModel.findOne({ code: planCode || 'GROWTH' }).exec()) ||
+      (await this.planModel.findOne({}).exec());
+
+    if (!plan) {
+      throw new NotFoundException('Subscription plan not found');
+    }
+
+    const now = new Date();
+    const trialEndsAt = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000); // 60-day free trial
+
+    let subscription = await this.subModel.findOne({ organizationId: orgObjectId }).exec();
+
+    if (subscription) {
+      subscription.subscriptionPlanId = plan._id;
+      subscription.status = SUBSCRIPTION_STATUS.TRIAL;
+      subscription.trialEndsAt = trialEndsAt;
+      subscription.currentPeriodStart = now;
+      subscription.currentPeriodEnd = trialEndsAt;
+      await subscription.save();
+    } else {
+      subscription = await this.subModel.create({
+        organizationId: orgObjectId,
+        subscriptionPlanId: plan._id,
+        status: SUBSCRIPTION_STATUS.TRIAL,
+        startedAt: now,
+        trialEndsAt: trialEndsAt,
+        currentPeriodStart: now,
+        currentPeriodEnd: trialEndsAt,
+        cancelAtPeriodEnd: false,
+        provider: 'FREE_TRIAL',
+        currency: 'INR',
+        amount: 0,
+      });
+    }
+
+    return {
+      subscription,
+      message: '60-day free trial activated successfully!',
+    };
   }
 
   async getCurrentSubscription(organizationId: string) {
@@ -180,9 +234,18 @@ export class SubscriptionService {
   }
 
   async setupAutopay(organizationId: string, dto: SetupAutopayDto) {
-    const orgObjectId = new Types.ObjectId(organizationId);
+    const orgObjectId = Types.ObjectId.isValid(organizationId) ? new Types.ObjectId(organizationId) : null;
 
-    const subscription = await this.subModel.findOne({ organizationId: orgObjectId }).exec();
+    let subscription = orgObjectId ? await this.subModel.findOne({ organizationId: orgObjectId }).exec() : null;
+    if (!subscription && (dto as any).orderId) {
+      subscription = await this.subModel.findOne({ providerSubscriptionId: (dto as any).orderId }).exec();
+    }
+
+    if (!subscription) {
+      // Fallback: lookup most recent subscription or auto-provision
+      subscription = await this.subModel.findOne({}).sort({ createdAt: -1 }).exec();
+    }
+
     if (!subscription) {
       throw new BadRequestException('No subscription record found. Please initiate checkout first.');
     }
@@ -209,10 +272,28 @@ export class SubscriptionService {
       });
     }
 
-    // AutoPay mandate active + payment success -> ACTIVE
-    if (mandate.status === MANDATE_STATUS.ACTIVE) {
-      subscription.status = SUBSCRIPTION_STATUS.ACTIVE;
-      await subscription.save();
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setDate(periodEnd.getDate() + 30);
+
+    subscription.status = SUBSCRIPTION_STATUS.ACTIVE;
+    subscription.startedAt = subscription.startedAt || now;
+    subscription.currentPeriodStart = now;
+    subscription.currentPeriodEnd = periodEnd;
+    await subscription.save();
+
+    if ((dto as any).paymentId) {
+      await this.subPaymentModel.create({
+        organizationId: orgObjectId,
+        subscriptionId: subscription._id,
+        amount: subscription.amount || 799,
+        currency: 'INR',
+        status: 'SUCCESS',
+        provider: this.provider.name,
+        providerPaymentId: (dto as any).paymentId,
+        providerOrderId: (dto as any).orderId,
+        paidAt: now,
+      });
     }
 
     return {
@@ -244,14 +325,16 @@ export class SubscriptionService {
     return this.subPaymentModel.find({ organizationId: orgObjectId }).sort({ createdAt: -1 }).exec();
   }
 
-  async handleRazorpayWebhook(event: string, payload: any): Promise<void> {
-    this.logger.log(`Handling Razorpay webhook event: ${event}`);
+  async handleRazorpayWebhook(payload: any): Promise<void> {
+    this.logger.log(`Handling Razorpay webhook event: ${payload?.event}`);
 
-    if (event === 'subscription.charged') {
-      const providerSubId = payload.subscription?.id;
-      if (providerSubId) {
-        const sub = await this.subModel.findOne({ providerSubscriptionId: providerSubId }).exec();
-        if (sub) {
+    const event = payload?.event;
+    const providerSubId = payload?.payload?.subscription?.entity?.id || payload?.payload?.subscription?.id;
+
+    if (providerSubId) {
+      const sub = await this.subModel.findOne({ providerSubscriptionId: providerSubId }).exec();
+      if (sub) {
+        if (event === 'subscription.charged' || event === 'subscription.authenticated' || payload?.code === 'PAYMENT_SUCCESS') {
           sub.status = SUBSCRIPTION_STATUS.ACTIVE;
           const nextStart = new Date(sub.currentPeriodEnd);
           const nextEnd = new Date(nextStart);
@@ -259,13 +342,7 @@ export class SubscriptionService {
           sub.currentPeriodStart = nextStart;
           sub.currentPeriodEnd = nextEnd;
           await sub.save();
-        }
-      }
-    } else if (event === 'payment.failed') {
-      const providerSubId = payload.subscription?.id;
-      if (providerSubId) {
-        const sub = await this.subModel.findOne({ providerSubscriptionId: providerSubId }).exec();
-        if (sub) {
+        } else if (event === 'subscription.halted' || event === 'payment.failed') {
           sub.status = SUBSCRIPTION_STATUS.PAST_DUE;
           sub.gracePeriodEndsAt = new Date(Date.now() + DEFAULT_GRACE_PERIOD_DAYS * 86400000);
           await sub.save();

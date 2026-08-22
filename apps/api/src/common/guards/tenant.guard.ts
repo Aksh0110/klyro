@@ -7,7 +7,9 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { ROLES } from '@klyro/config';
 import { User, UserDocument } from '../../modules/users/schemas/user.schema';
+import { Customer, CustomerDocument } from '../../modules/customers/schemas/customer.schema';
 import { RequestWithTenant } from '../interfaces/request-with-tenant.interface';
 
 @Injectable()
@@ -15,6 +17,8 @@ export class TenantGuard implements CanActivate {
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @InjectModel(Customer.name)
+    private readonly customerModel: Model<CustomerDocument>,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -45,13 +49,27 @@ export class TenantGuard implements CanActivate {
       (r) => r.organizationId.toString() === targetOrgId,
     );
 
-    if (!roleAssignment) {
-      throw new ForbiddenException('User is not authorized for the requested organization context');
+    let effectiveRole = roleAssignment?.role;
+
+    if (!effectiveRole) {
+      const isMemberCustomer = await this.customerModel.exists({
+        organizationId: new Types.ObjectId(targetOrgId),
+        $or: [{ userId: dbUser._id }, { phone: dbUser.phone }],
+      });
+
+      if (isMemberCustomer) {
+        effectiveRole = ROLES.MEMBER;
+      } else {
+        throw new ForbiddenException('User is not authorized for the requested organization context');
+      }
     }
+
+    const headerBranchId = request.headers['x-branch-id'] as string | undefined;
 
     request.tenantContext = {
       organizationId: targetOrgId,
-      role: roleAssignment.role,
+      branchId: headerBranchId,
+      role: effectiveRole,
       userId: dbUser._id.toString(),
     };
 

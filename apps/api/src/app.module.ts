@@ -11,6 +11,9 @@ import { MembershipPlansModule } from './modules/membership-plans/membership-pla
 import { MembershipsModule } from './modules/memberships/memberships.module';
 import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { GymBillingModule } from './modules/gym-billing/gym-billing.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
+import { CommunicationsModule } from './modules/communications/communications.module';
+import { GymWorkflowModule } from './modules/gym-workflow/gym-workflow.module';
 
 @Module({
   imports: [
@@ -35,6 +38,9 @@ import { GymBillingModule } from './modules/gym-billing/gym-billing.module';
     MembershipsModule,
     SubscriptionModule,
     GymBillingModule,
+    AttendanceModule,
+    CommunicationsModule,
+    GymWorkflowModule,
   ],
 })
 export class AppModule {}

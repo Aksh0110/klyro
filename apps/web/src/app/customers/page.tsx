@@ -1,31 +1,31 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/lib/auth-context';
 import { apiRequest } from '@/lib/api';
-import { ICustomer, IBranch } from '@klyro/types';
-import { Users, Search, Plus, UserPlus, Phone, Building2, ChevronRight, X } from 'lucide-react';
+import { ICustomer } from '@klyro/types';
+import {
+  Users,
+  Search,
+  UserPlus,
+  ChevronRight,
+  Plus,
+} from 'lucide-react';
+import { QuickActionModal } from '@/components/QuickActionModal';
 
 export default function CustomersPage() {
+  const router = useRouter();
   const { activeOrgId } = useAuth();
   const [customers, setCustomers] = useState<ICustomer[]>([]);
-  const [branches, setBranches] = useState<IBranch[]>([]);
+  const [memberships, setMemberships] = useState<any[]>([]);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'EXPIRING' | 'INACTIVE'>('ALL');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Add Customer Modal State
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [gender, setGender] = useState('UNSPECIFIED');
-  const [branchId, setBranchId] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [modalError, setModalError] = useState<string | null>(null);
+  // Quick Action Modal State
+  const [showQuickModal, setShowQuickModal] = useState(false);
 
   const fetchCustomers = async () => {
     if (!activeOrgId) return;
@@ -33,11 +33,16 @@ export default function CustomersPage() {
     try {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
-      if (statusFilter) params.append('status', statusFilter);
+      if (activeTab !== 'ALL') params.append('status', activeTab);
 
       const endpoint = `/customers?${params.toString()}`;
-      const data = await apiRequest<ICustomer[]>(endpoint, {}, activeOrgId);
-      setCustomers(data);
+      const [custData, memData] = await Promise.all([
+        apiRequest<ICustomer[]>(endpoint, {}, activeOrgId),
+        apiRequest<any[]>('/memberships', {}, activeOrgId).catch(() => []),
+      ]);
+
+      setCustomers(custData || []);
+      setMemberships(Array.isArray(memData) ? memData : (memData as any)?.data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -46,302 +51,175 @@ export default function CustomersPage() {
   };
 
   useEffect(() => {
-    const fetchBranches = async () => {
-      if (!activeOrgId) return;
-      try {
-        const branchList = await apiRequest<IBranch[]>('/branches', {}, activeOrgId);
-        setBranches(branchList);
-        if (branchList.length > 0) setBranchId(branchList[0]._id);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchBranches();
-  }, [activeOrgId]);
-
-  useEffect(() => {
     fetchCustomers();
-  }, [activeOrgId, search, statusFilter]);
+  }, [activeOrgId, search, activeTab]);
 
-  const handleAddCustomer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!firstName || !phone || !branchId || !activeOrgId) return;
-
-    setIsSubmitting(true);
-    setModalError(null);
-
-    try {
-      await apiRequest<ICustomer>(
-        '/customers',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            branchId,
-            firstName,
-            lastName,
-            phone,
-            email: email || undefined,
-            gender,
-          }),
-        },
-        activeOrgId,
-      );
-
-      setShowAddModal(false);
-      setFirstName('');
-      setLastName('');
-      setPhone('');
-      setEmail('');
-      fetchCustomers();
-    } catch (err: any) {
-      setModalError(err.message || 'Failed to create customer');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const filteredCustomers = React.useMemo(() => {
+    return customers.filter((c) => {
+      if (activeTab === 'EXPIRING') {
+        const custMembership = memberships.find((m) => {
+          const custId = typeof m.customerId === 'object' ? m.customerId?._id : m.customerId;
+          return custId === c._id;
+        });
+        if (!custMembership || !custMembership.endDate) return false;
+        const diffMs = new Date(custMembership.endDate).getTime() - Date.now();
+        const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        return daysLeft <= 7;
+      }
+      return true;
+    });
+  }, [customers, memberships, activeTab]);
 
   return (
     <AppShell>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="space-y-4 max-w-4xl mx-auto pb-6">
+        {/* Top Header Row */}
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-extrabold text-foreground flex items-center gap-2">
-              <Users className="w-6 h-6 text-primary" />
-              Customer Management
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage tenant gym members, contact details, and branch assignments
+            <h1 className="text-xl md:text-2xl font-extrabold text-[#d4e4fa]">Members Directory</h1>
+            <p className="text-xs text-[#958ea0]">
+              Total: <span className="font-bold text-[#d4e4fa]">{customers.length}</span> members
             </p>
           </div>
-
           <button
-            onClick={() => setShowAddModal(true)}
-            className="py-2.5 px-4 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 text-sm shadow-md shadow-primary/20"
+            onClick={() => setShowQuickModal(true)}
+            className="w-10 h-10 rounded-full bg-[#d0bcff] text-[#3c0091] flex items-center justify-center font-bold shadow-lg hover:bg-[#d0bcff]/90 active:scale-95 transition-all"
+            title="Add Member"
           >
-            <UserPlus className="w-4 h-4" />
-            <span>Add New Customer</span>
+            <Plus className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Filters & Search */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 bg-card border border-border p-4 rounded-xl">
-          <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-3" />
-            <input
-              type="text"
-              placeholder="Search by name, phone, or customer code..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-secondary/50 border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#958ea0]" />
+          <input
+            type="text"
+            placeholder="Search name, phone, or code"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-[#122131] border border-[#273647] rounded-xl pl-10 pr-4 py-2 text-xs text-[#d4e4fa] placeholder:text-[#958ea0] focus:outline-none focus:border-[#d0bcff] transition-all"
+          />
+        </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 bg-secondary/50 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        {/* Status Filter Chips */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+          {(['ALL', 'ACTIVE', 'EXPIRING', 'INACTIVE'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${
+                activeTab === tab
+                  ? 'bg-[#1c2b3c] border-[#d0bcff] text-[#d4e4fa]'
+                  : 'bg-[#122131] border-[#273647] text-[#958ea0] hover:text-[#d4e4fa]'
+              }`}
             >
-              <option value="">All Statuses</option>
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-              <option value="BLOCKED">Blocked</option>
-            </select>
+              {tab === 'ALL' ? 'All' : tab.charAt(0) + tab.slice(1).toLowerCase()}
+            </button>
+          ))}
+        </div>
+
+        {/* Compact List-Type Customers Directory */}
+        {isLoading ? (
+          <div className="py-12 text-center text-xs text-[#958ea0]">Loading members directory...</div>
+        ) : filteredCustomers.length === 0 ? (
+          <div className="p-8 text-center border border-dashed border-[#273647] rounded-2xl bg-[#122131]/50 space-y-3">
+            <Users className="w-10 h-10 mx-auto text-[#958ea0]" />
+            <h3 className="text-sm font-bold text-[#d4e4fa]">No members found</h3>
+            <p className="text-xs text-[#958ea0] max-w-xs mx-auto">
+              {search || activeTab !== 'ALL' ? 'Try adjusting your search query or filter.' : 'Add your first member to get started.'}
+            </p>
+            <button
+              onClick={() => setShowQuickModal(true)}
+              className="px-4 py-2 rounded-xl bg-[#d0bcff] text-[#3c0091] font-bold text-xs inline-flex items-center gap-1.5"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Add Member</span>
+            </button>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredCustomers.map((c) => {
+              // Find active membership for this customer
+              const custMembership = memberships.find((m) => {
+                const custId = typeof m.customerId === 'object' ? m.customerId?._id : m.customerId;
+                return custId === c._id && m.status === 'ACTIVE';
+              });
 
-        {/* Table / Grid */}
-        <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-          {isLoading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">Loading customer records...</div>
-          ) : customers.length === 0 ? (
-            <div className="p-12 text-center space-y-3">
-              <Users className="w-10 h-10 text-muted-foreground mx-auto opacity-40" />
-              <h3 className="text-base font-bold text-foreground">No Customers Found</h3>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                No customer records match your current filters or organization context. Click &quot;Add New Customer&quot; to create one.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-secondary/40 text-muted-foreground text-xs uppercase font-semibold border-b border-border">
-                  <tr>
-                    <th className="py-3 px-4">Code</th>
-                    <th className="py-3 px-4">Customer</th>
-                    <th className="py-3 px-4">Phone</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Joined</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {customers.map((c) => (
-                    <tr key={c._id} className="hover:bg-secondary/20 transition-all">
-                      <td className="py-3.5 px-4 font-mono text-xs font-semibold text-indigo-400">
-                        {c.customerCode}
-                      </td>
-                      <td className="py-3.5 px-4 font-medium text-foreground">
-                        {c.firstName} {c.lastName || ''}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
-                        <Phone className="w-3 h-3" />
-                        {c.phone}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                            c.status === 'ACTIVE'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-secondary text-muted-foreground border border-border'
-                          }`}
-                        >
-                          {c.status}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-xs text-muted-foreground">
-                        {new Date(c.joinedAt).toLocaleDateString()}
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <Link
-                          href={`/customers/${c._id}`}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 transition-all"
-                        >
-                          <span>View Profile</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+              let daysLeft: number | undefined = undefined;
+              if (custMembership && custMembership.endDate) {
+                const diffMs = new Date(custMembership.endDate).getTime() - Date.now();
+                daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+              }
 
-        {/* Add Customer Modal */}
-        {showAddModal && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-5">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <UserPlus className="w-5 h-5 text-primary" />
-                  Add New Customer
-                </h3>
-                <button
-                  onClick={() => setShowAddModal(false)}
-                  className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-secondary"
+              return (
+                <div
+                  key={c._id}
+                  onClick={() => router.push(`/customers/${c._id}`)}
+                  className="p-3 rounded-xl bg-[#122131] border border-[#273647] hover:border-[#d0bcff]/40 transition-all cursor-pointer group flex items-center justify-between gap-3 shadow-sm"
                 >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {modalError && (
-                <div className="p-3 bg-destructive/15 border border-destructive/30 rounded-xl text-xs text-destructive">
-                  {modalError}
-                </div>
-              )}
-
-              <form onSubmit={handleAddCustomer} className="space-y-4 text-sm">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Branch</label>
-                  <select
-                    value={branchId}
-                    onChange={(e) => setBranchId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    {branches.map((b) => (
-                      <option key={b._id} value={b._id}>
-                        {b.name} ({b.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">First Name</label>
-                    <input
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      placeholder="e.g. Rahul"
-                      required
-                      className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
+                  {/* Left Member Info */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-[#1c2b3c] border border-[#273647] text-[#d4e4fa] flex items-center justify-center font-bold text-xs flex-shrink-0 group-hover:border-[#d0bcff]/50 transition-colors">
+                      {c.firstName.charAt(0)}
+                      {c.lastName ? c.lastName.charAt(0) : ''}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-bold text-xs md:text-sm text-[#d4e4fa] truncate group-hover:text-[#d0bcff] transition-colors">
+                          {c.firstName} {c.lastName || ''}
+                        </h3>
+                        <span className="text-[10px] text-[#958ea0] font-mono flex-shrink-0">
+                          ({c.customerCode || 'CUST'})
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-[#958ea0] font-mono truncate mt-0.5">
+                        {c.phone}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Last Name</label>
-                    <input
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      placeholder="e.g. Sharma"
-                      className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
+
+                  {/* Right Renewal Days Badge & Arrow */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {daysLeft !== undefined ? (
+                      <span
+                        className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                          daysLeft > 7
+                            ? 'bg-[#4edea3]/10 text-[#4edea3] border-[#4edea3]/20'
+                            : daysLeft >= 0
+                            ? 'bg-[#ffb95f]/10 text-[#ffb95f] border-[#ffb95f]/20'
+                            : 'bg-[#ffb4ab]/10 text-[#ffb4ab] border-[#ffb4ab]/20'
+                        }`}
+                      >
+                        {daysLeft > 0
+                          ? `${daysLeft}d left`
+                          : daysLeft === 0
+                          ? 'Expires today'
+                          : `Expired (${Math.abs(daysLeft)}d)`}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#1c2b3c] text-[#958ea0] border border-[#273647]">
+                        No Plan
+                      </span>
+                    )}
+
+                    <ChevronRight className="w-4 h-4 text-[#958ea0] group-hover:text-[#d4e4fa] group-hover:translate-x-0.5 transition-all" />
                   </div>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Phone Number</label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+919876543210"
-                    required
-                    className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email (Optional)</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="rahul@example.com"
-                    className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gender</label>
-                  <select
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="UNSPECIFIED">Unspecified</option>
-                    <option value="MALE">Male</option>
-                    <option value="FEMALE">Female</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                </div>
-
-                <div className="pt-3 border-t border-border flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    {isSubmitting ? 'Saving...' : 'Create Customer'}
-                  </button>
-                </div>
-              </form>
-            </div>
+              );
+            })}
           </div>
         )}
       </div>
+
+      <QuickActionModal
+        isOpen={showQuickModal}
+        onClose={() => {
+          setShowQuickModal(false);
+          fetchCustomers();
+        }}
+        initialTab="onboard"
+      />
     </AppShell>
   );
 }

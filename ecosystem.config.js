@@ -40,7 +40,8 @@ module.exports = {
   apps: [
     {
       name: 'klyro-api',
-      script: 'dist/main.js',
+      script: 'node_modules/@nestjs/cli/bin/nest.js',
+      args: 'start --watch',
       cwd: './apps/api',
       autorestart: true,
       watch: false,
@@ -50,7 +51,7 @@ module.exports = {
     {
       name: 'klyro-web',
       script: 'node_modules/next/dist/bin/next',
-      args: 'dev',
+      args: 'dev -H 0.0.0.0 -p 3000',
       cwd: './apps/web',
       autorestart: true,
       watch: false,
@@ -60,16 +61,6 @@ module.exports = {
         PORT: '3000',
         NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1',
       },
-    },
-    {
-      name: 'klyro-api-watch',
-      script: 'node_modules/@nestjs/cli/bin/nest.js',
-      args: 'start --watch',
-      cwd: './apps/api',
-      autorestart: true,
-      watch: false,
-      max_restarts: 10,
-      env: defaultApiEnv,
     },
   ],
 };

@@ -12,7 +12,7 @@ interface AuthContextType {
   isLoading: boolean;
   sendOtp: (phone: string) => Promise<SendOtpResponseData>;
   verifyOtp: (phone: string, otp: string) => Promise<AuthResponseData>;
-  createOrganization: (name: string, vertical: VerticalType) => Promise<any>;
+  createOrganization: (name: string, vertical: VerticalType, ownerName?: string, ownerEmail?: string) => Promise<any>;
   setActiveOrgId: (orgId: string) => void;
   logout: () => void;
 }
@@ -61,11 +61,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setActiveOrgId(userData.organizationIds[0]);
         }
 
-        // Route redirection check
+        // Route redirection check with strict subscription verification
         if (userData.organizationIds.length === 0 && pathname !== '/setup') {
           router.push('/setup');
-        } else if (userData.organizationIds.length > 0 && (pathname === '/login' || pathname === '/verify-otp' || pathname === '/setup')) {
-          router.push('/dashboard');
+        } else if (userData.organizationIds.length > 0) {
+          const checkOrgId = targetOrg || userData.organizationIds[0];
+          try {
+            const subData = await apiRequest<any>('/subscription/current', {}, checkOrgId);
+            const subStatus = subData?.subscription?.status;
+            const isPaidOrTrial = subStatus === 'ACTIVE' || subStatus === 'TRIAL' || subStatus === 'PENDING_AUTOPAY';
+
+            if (!isPaidOrTrial) {
+              if (pathname !== '/setup/subscription') {
+                router.push('/setup/subscription');
+              }
+            } else if (pathname === '/login' || pathname === '/verify-otp' || pathname === '/setup' || pathname === '/setup/subscription') {
+              const userRole = userData.roles?.find((r) => r.organizationId === checkOrgId)?.role || 'MEMBER';
+              if (userRole === 'MEMBER') {
+                router.push('/member');
+              } else {
+                router.push('/dashboard');
+              }
+            }
+          } catch {
+            if (pathname !== '/setup/subscription' && pathname !== '/login' && pathname !== '/verify-otp') {
+              router.push('/setup/subscription');
+            }
+          }
         }
       } catch {
         logout();
@@ -95,8 +117,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(data.user);
 
     if (data.user.organizationIds.length > 0) {
-      setActiveOrgId(data.user.organizationIds[0]);
-      router.push('/dashboard');
+      const primaryOrgId = data.user.organizationIds[0];
+      setActiveOrgId(primaryOrgId);
+
+      try {
+        const subData = await apiRequest<any>('/subscription/current', {}, primaryOrgId);
+        const subStatus = subData?.subscription?.status;
+        const isPaidOrTrial = subStatus === 'ACTIVE' || subStatus === 'TRIAL' || subStatus === 'PENDING_AUTOPAY';
+
+        if (isPaidOrTrial) {
+          const userRole = data.user.roles?.find((r) => r.organizationId === primaryOrgId)?.role || 'MEMBER';
+          if (userRole === 'MEMBER') {
+            router.push('/member');
+          } else {
+            router.push('/dashboard');
+          }
+        } else {
+          router.push('/setup/subscription');
+        }
+      } catch {
+        router.push('/setup/subscription');
+      }
     } else {
       router.push('/setup');
     }
@@ -104,10 +145,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return data;
   };
 
-  const createOrganization = async (name: string, vertical: VerticalType) => {
+  const createOrganization = async (name: string, vertical: VerticalType, ownerName?: string, ownerEmail?: string) => {
     const result = await apiRequest<{ organization: IOrganization }>('/organizations', {
       method: 'POST',
-      body: JSON.stringify({ name, vertical }),
+      body: JSON.stringify({ name, vertical, ownerName, ownerEmail }),
     });
 
     const newOrgId = result.organization._id;
@@ -117,7 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updatedUser = await apiRequest<IUser>('/auth/me');
     setUser(updatedUser);
 
-    router.push('/dashboard');
+    router.push('/setup/subscription');
     return result;
   };
 

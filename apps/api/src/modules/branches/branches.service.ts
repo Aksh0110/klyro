@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreateBranchDto, UpdateBranchDto } from '@klyro/validation';
@@ -23,11 +23,21 @@ export class BranchesService {
       throw new ConflictException(`Branch code '${dto.code}' already exists in this organization`);
     }
 
+    if (dto.settings?.memberSelfCheckInEnabled) {
+      const lat = dto.location?.latitude;
+      const lng = dto.location?.longitude;
+      if (lat === undefined || lat === null || lng === undefined || lng === null) {
+        throw new BadRequestException('Set your gym location before enabling member self check-in.');
+      }
+    }
+
     return this.branchModel.create({
       organizationId: orgObjectId,
       name: dto.name,
       code: dto.code.toUpperCase(),
       address: dto.address,
+      location: dto.location || {},
+      settings: dto.settings || { memberSelfCheckInEnabled: false, selfCheckInRadiusMeters: 100 },
     });
   }
 
@@ -87,6 +97,30 @@ export class BranchesService {
     }
     if (dto.status) branch.status = dto.status;
     if (dto.address) branch.address = dto.address;
+
+    if (dto.location) {
+      branch.location = {
+        ...branch.location,
+        ...dto.location,
+      };
+    }
+
+    if (dto.settings) {
+      branch.settings = {
+        memberSelfCheckInEnabled: branch.settings?.memberSelfCheckInEnabled ?? false,
+        selfCheckInRadiusMeters: branch.settings?.selfCheckInRadiusMeters ?? 100,
+        ...dto.settings,
+      };
+    }
+
+    const isEnablingSelfCheckIn = branch.settings?.memberSelfCheckInEnabled;
+    if (isEnablingSelfCheckIn) {
+      const lat = branch.location?.latitude;
+      const lng = branch.location?.longitude;
+      if (lat === undefined || lat === null || lng === undefined || lng === null) {
+        throw new BadRequestException('Set your gym location before enabling member self check-in.');
+      }
+    }
 
     return branch.save();
   }

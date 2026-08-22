@@ -33,6 +33,11 @@ export class OrganizationsService {
 
     const orgId = organization._id.toString();
 
+    // Update owner user name and email if provided
+    if (dto.ownerName || dto.ownerEmail) {
+      await this.usersService.updateUserProfile(userId, dto.ownerName, dto.ownerEmail);
+    }
+
     // Associate user as OWNER
     await this.usersService.addOrganizationRole(userId, orgId, ROLES.OWNER);
 

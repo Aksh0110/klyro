@@ -33,6 +33,9 @@ export class Invoice {
   @Prop({ required: true, min: 0 })
   totalAmount!: number;
 
+  @Prop({ required: true, default: 0, min: 0 })
+  paidAmount?: number;
+
   @Prop({ required: true, default: 'INR' })
   currency!: string;
 

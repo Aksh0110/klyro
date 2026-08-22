@@ -30,6 +30,9 @@ export class Customer {
   @Prop({ type: Types.ObjectId, ref: 'Branch', required: true, index: true })
   branchId!: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'User', index: true })
+  userId?: Types.ObjectId;
+
   @Prop({ required: true })
   customerCode!: string;
 
@@ -71,4 +74,5 @@ export const CustomerSchema = SchemaFactory.createForClass(Customer);
 
 // Compound index for tenant uniqueness of customerCode and phone
 CustomerSchema.index({ organizationId: 1, customerCode: 1 }, { unique: true });
-CustomerSchema.index({ organizationId: 1, phone: 1 });
+CustomerSchema.index({ organizationId: 1, phone: 1 }, { unique: true });
+
