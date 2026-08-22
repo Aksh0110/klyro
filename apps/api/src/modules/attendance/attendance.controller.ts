@@ -6,12 +6,14 @@ import { AttendanceService } from './attendance.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { EntitlementGuard } from '../subscription/guards/entitlement.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { GetTenantContext } from '../../common/decorators/tenant.decorator';
 
 @Controller('attendance')
-@UseGuards(JwtAuthGuard, TenantGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionsGuard, EntitlementGuard)
 export class AttendanceController {
+
   constructor(private readonly attendanceService: AttendanceService) {}
 
   @Post('self-check-in')

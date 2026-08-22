@@ -8,6 +8,7 @@ import { MembershipPlansModule } from '../membership-plans/membership-plans.modu
 import { BranchesModule } from '../branches/branches.module';
 import { UsersModule } from '../users/users.module';
 import { GymBillingModule } from '../gym-billing/gym-billing.module';
+import { SubscriptionModule } from '../subscription/subscription.module';
 
 @Module({
   imports: [
@@ -19,9 +20,11 @@ import { GymBillingModule } from '../gym-billing/gym-billing.module';
     BranchesModule,
     UsersModule,
     GymBillingModule,
+    SubscriptionModule,
   ],
   controllers: [MembershipsController],
   providers: [MembershipsService],
   exports: [MembershipsService],
 })
 export class MembershipsModule {}
+
