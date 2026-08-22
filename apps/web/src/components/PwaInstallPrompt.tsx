@@ -63,18 +63,18 @@ export const PwaInstallPrompt: React.FC = () => {
   }, [user]);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-
-    try {
-      await deferredPrompt.prompt();
-      const choiceResult = await deferredPrompt.userChoice;
-      if (choiceResult.outcome === 'accepted') {
-        setShowPrompt(false);
+    if (deferredPrompt) {
+      try {
+        await deferredPrompt.prompt();
+        const choiceResult = await deferredPrompt.userChoice;
+        if (choiceResult.outcome === 'accepted') {
+          setShowPrompt(false);
+        }
+      } catch (err) {
+        console.error('PWA install error:', err);
+      } finally {
+        setDeferredPrompt(null);
       }
-    } catch (err) {
-      console.error('PWA install error:', err);
-    } finally {
-      setDeferredPrompt(null);
     }
   };
 
@@ -101,11 +101,11 @@ export const PwaInstallPrompt: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h3 className="font-extrabold text-sm text-[#d4e4fa]">Add Klyro to Home Screen</h3>
+                <h3 className="font-extrabold text-sm text-[#d4e4fa]">Install Klyro App</h3>
                 <Sparkles className="w-3.5 h-3.5 text-[#d0bcff]" />
               </div>
               <p className="text-[11px] text-[#958ea0]">
-                Install mobile app widget for 1-tap fast access
+                Add to Home Screen for full-screen app experience
               </p>
             </div>
           </div>
@@ -122,7 +122,7 @@ export const PwaInstallPrompt: React.FC = () => {
         {/* Dynamic iOS or Android Guidance */}
         {isIos ? (
           <div className="p-2.5 rounded-xl bg-[#1c2b3c]/80 border border-[#273647] text-xs text-[#d4e4fa] space-y-1.5">
-            <p className="font-semibold text-[#d0bcff] text-[11px]">iOS Installation Instructions:</p>
+            <p className="font-semibold text-[#d0bcff] text-[11px]">iOS Home Screen Instructions:</p>
             <div className="flex items-center gap-2 text-[11px] text-[#958ea0]">
               <span className="flex items-center gap-1 text-[#d4e4fa] font-bold">
                 1. Tap Share <Share className="w-3.5 h-3.5 text-[#3395ff] inline" />
@@ -133,14 +133,14 @@ export const PwaInstallPrompt: React.FC = () => {
               </span>
             </div>
           </div>
-        ) : (
+        ) : deferredPrompt ? (
           <div className="flex items-center gap-2 pt-1">
             <button
               onClick={handleInstallClick}
               className="flex-1 py-2.5 px-4 bg-gradient-to-r from-[#8b5cf6] to-[#6366f1] hover:brightness-110 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-900/30 flex items-center justify-center gap-2 transition-all active:scale-95"
             >
               <Download className="w-4 h-4" />
-              <span>Install Klyro Widget</span>
+              <span>Install Klyro App</span>
             </button>
             <button
               onClick={handleDismiss}
@@ -149,8 +149,16 @@ export const PwaInstallPrompt: React.FC = () => {
               Not Now
             </button>
           </div>
+        ) : (
+          <div className="p-2.5 rounded-xl bg-[#1c2b3c]/80 border border-[#273647] text-xs text-[#d4e4fa] space-y-1.5">
+            <p className="font-semibold text-[#d0bcff] text-[11px]">Android / Mobile Installation:</p>
+            <p className="text-[11px] text-[#958ea0]">
+              Tap browser menu <span className="text-[#d4e4fa] font-bold">⋮</span> at top-right → select <span className="text-[#4edea3] font-bold">&apos;Add to Home screen&apos;</span> or <span className="text-[#3395ff] font-bold">&apos;Install app&apos;</span>.
+            </p>
+          </div>
         )}
       </div>
     </div>
   );
 };
+
