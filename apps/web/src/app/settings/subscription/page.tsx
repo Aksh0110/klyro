@@ -2,11 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-
+import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/lib/auth-context';
 import { apiRequest } from '@/lib/api';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { BottomNav } from '@/components/layout/BottomNav';
 import {
   CreditCard,
   ShieldCheck,
@@ -70,12 +68,11 @@ export default function SubscriptionSettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-background text-foreground">
-        <Sidebar />
-        <main className="flex-1 p-6 flex items-center justify-center">
+      <AppShell>
+        <div className="p-12 flex items-center justify-center">
           <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </main>
-      </div>
+        </div>
+      </AppShell>
     );
   }
 
@@ -103,32 +100,30 @@ export default function SubscriptionSettingsPage() {
     : 'N/A';
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground pb-16 md:pb-0">
-      <Sidebar />
-
-      <main className="flex-1 p-4 md:p-8 max-w-5xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+    <AppShell>
+      <div className="space-y-6 max-w-4xl mx-auto pb-6">
+        {/* Responsive Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/settings')}
-              className="p-2 rounded-xl bg-secondary hover:bg-secondary/80 text-muted-foreground transition-all"
+              className="p-2 rounded-xl bg-secondary hover:bg-secondary/80 text-muted-foreground transition-all shrink-0"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
             <div>
               <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground">
-                Gym Owner Subscription & Billing
+                Gym Owner Plan & Subscription
               </h1>
               <p className="text-xs text-muted-foreground">
-                Track your active plan, free trial countdown, and renewal due dates
+                Manage your SaaS plan, free trial status & billing details
               </p>
             </div>
           </div>
 
           <button
             onClick={() => router.push('/setup/subscription')}
-            className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all shadow-md shadow-primary/20 flex items-center gap-1.5"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-1.5"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Change / Upgrade Plan</span>
@@ -143,14 +138,14 @@ export default function SubscriptionSettingsPage() {
 
         {/* Dedicated 60-Day Free Trial Banner (if in Trial mode) */}
         {isTrial && (
-          <div className="p-5 rounded-2xl bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-purple-950/30 border border-purple-500/30 text-purple-200 shadow-xl space-y-3">
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-purple-950/30 border border-purple-500/30 text-purple-200 shadow-xl space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-300">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-300 shrink-0">
                   <Gift className="w-5 h-5 animate-pulse" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-sm text-purple-100 flex items-center gap-2">
+                  <h3 className="font-extrabold text-sm text-purple-100 flex items-center gap-2 flex-wrap">
                     <span>🎉 60-Day Free Trial Active</span>
                     <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-[10px] text-purple-300 font-mono">
                       {trialDaysLeft} Days Remaining
@@ -164,7 +159,7 @@ export default function SubscriptionSettingsPage() {
 
               <button
                 onClick={() => router.push('/setup/subscription')}
-                className="px-4 py-2 rounded-xl bg-purple-500 hover:bg-purple-600 text-white font-extrabold text-xs transition-all shadow-md shrink-0"
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-purple-500 hover:bg-purple-600 text-white font-extrabold text-xs transition-all shadow-md shrink-0 text-center"
               >
                 Upgrade to Paid Plan
               </button>
@@ -187,11 +182,11 @@ export default function SubscriptionSettingsPage() {
         )}
 
         {/* Subscription Main Status Cards */}
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-6">
+        <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 shadow-sm space-y-6">
           {/* Top Plan Overview */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-6">
             <div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <h2 className="text-xl font-extrabold text-foreground">{plan?.name || 'Growth Plan'}</h2>
                 <span
                   className={`text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider ${
@@ -210,7 +205,7 @@ export default function SubscriptionSettingsPage() {
               </p>
             </div>
 
-            <div className="text-right sm:text-right">
+            <div className="text-left sm:text-right">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Next Renewal Due</span>
               <span className="text-sm font-extrabold text-emerald-400 font-mono">{formattedDueDate}</span>
               <span className="text-xs text-muted-foreground block font-medium">({renewalDaysLeft} days remaining)</span>
@@ -218,7 +213,7 @@ export default function SubscriptionSettingsPage() {
           </div>
 
           {/* Key Metrics Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             {/* Metric 1: Renewal Due */}
             <div className="p-4 rounded-xl bg-secondary/40 border border-border space-y-1">
               <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold">
@@ -276,9 +271,8 @@ export default function SubscriptionSettingsPage() {
         </div>
 
         {/* Subscription Payment History */}
-
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
-          <h3 className="font-bold text-lg">SaaS Billing History</h3>
+        <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+          <h3 className="font-bold text-base sm:text-lg">SaaS Billing History</h3>
 
           {payments.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground text-sm">No billing records found.</div>
@@ -287,23 +281,23 @@ export default function SubscriptionSettingsPage() {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs text-muted-foreground uppercase">
-                    <th className="pb-3 font-semibold">Date</th>
-                    <th className="pb-3 font-semibold">Amount</th>
-                    <th className="pb-3 font-semibold">Status</th>
-                    <th className="pb-3 font-semibold">Provider Ref</th>
+                    <th className="pb-3 font-semibold min-w-[100px]">Date</th>
+                    <th className="pb-3 font-semibold min-w-[80px]">Amount</th>
+                    <th className="pb-3 font-semibold min-w-[90px]">Status</th>
+                    <th className="pb-3 font-semibold min-w-[140px]">Provider Ref</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {payments.map((p) => (
                     <tr key={p._id} className="hover:bg-secondary/20">
-                      <td className="py-3.5 font-medium">{new Date(p.createdAt).toLocaleDateString()}</td>
-                      <td className="py-3.5 font-bold">₹{p.amount}</td>
-                      <td className="py-3.5">
+                      <td className="py-3.5 font-medium whitespace-nowrap">{new Date(p.createdAt).toLocaleDateString()}</td>
+                      <td className="py-3.5 font-bold whitespace-nowrap">₹{p.amount}</td>
+                      <td className="py-3.5 whitespace-nowrap">
                         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
                           {p.status}
                         </span>
                       </td>
-                      <td className="py-3.5 text-xs text-muted-foreground font-mono">
+                      <td className="py-3.5 text-xs text-muted-foreground font-mono whitespace-nowrap">
                         {p.providerPaymentId || 'N/A'}
                       </td>
                     </tr>
@@ -313,9 +307,8 @@ export default function SubscriptionSettingsPage() {
             </div>
           )}
         </div>
-      </main>
-
-      <BottomNav />
-    </div>
+      </div>
+    </AppShell>
   );
 }
+
