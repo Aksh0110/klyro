@@ -10,6 +10,8 @@ interface AuthContextType {
   user: IUser | null;
   activeOrgId: string | null;
   isLoading: boolean;
+  subscriptionStatus: string | null;
+  isSubscriptionValid: boolean;
   sendOtp: (phone: string) => Promise<SendOtpResponseData>;
   verifyOtp: (phone: string, otp: string) => Promise<AuthResponseData>;
   createOrganization: (name: string, vertical: VerticalType, ownerName?: string, ownerEmail?: string) => Promise<any>;
@@ -23,6 +25,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<IUser | null>(null);
   const [activeOrgId, setActiveOrgIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [isSubscriptionValid, setIsSubscriptionValid] = useState<boolean>(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -40,6 +44,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (!token) {
         setIsLoading(false);
+        setSubscriptionStatus(null);
+        setIsSubscriptionValid(false);
         if (pathname !== '/login' && pathname !== '/verify-otp') {
           router.push('/login');
         }
@@ -63,15 +69,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Route redirection check with strict subscription verification
         if (userData.organizationIds.length === 0 && pathname !== '/setup') {
+          setSubscriptionStatus(null);
+          setIsSubscriptionValid(false);
           router.replace('/setup');
         } else if (userData.organizationIds.length > 0) {
           const checkOrgId = targetOrg || userData.organizationIds[0];
           try {
             const subData = await apiRequest<any>('/subscription/current', {}, checkOrgId);
-            const subStatus = subData?.subscription?.status;
-            const isPaidOrTrial = subStatus === 'ACTIVE' || subStatus === 'TRIAL' || subStatus === 'PENDING_AUTOPAY';
+            const subStatus = subData?.subscription?.status || null;
+            const valid = subStatus === 'ACTIVE' || subStatus === 'TRIAL' || subStatus === 'PENDING_AUTOPAY';
 
-            if (!isPaidOrTrial) {
+            setSubscriptionStatus(subStatus);
+            setIsSubscriptionValid(valid);
+
+            if (!valid) {
               if (pathname !== '/setup/subscription') {
                 router.replace('/setup/subscription');
               }
@@ -84,6 +95,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
             }
           } catch {
+            setSubscriptionStatus(null);
+            setIsSubscriptionValid(false);
             if (pathname !== '/setup/subscription' && pathname !== '/login' && pathname !== '/verify-otp') {
               router.replace('/setup/subscription');
             }
@@ -122,10 +135,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       try {
         const subData = await apiRequest<any>('/subscription/current', {}, primaryOrgId);
-        const subStatus = subData?.subscription?.status;
-        const isPaidOrTrial = subStatus === 'ACTIVE' || subStatus === 'TRIAL' || subStatus === 'PENDING_AUTOPAY';
+        const subStatus = subData?.subscription?.status || null;
+        const valid = subStatus === 'ACTIVE' || subStatus === 'TRIAL' || subStatus === 'PENDING_AUTOPAY';
 
-        if (isPaidOrTrial) {
+        setSubscriptionStatus(subStatus);
+        setIsSubscriptionValid(valid);
+
+        if (valid) {
           const userRole = data.user.roles?.find((r) => r.organizationId === primaryOrgId)?.role || 'MEMBER';
           if (userRole === 'MEMBER') {
             router.replace('/member');
@@ -136,6 +152,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           router.replace('/setup/subscription');
         }
       } catch {
+        setSubscriptionStatus(null);
+        setIsSubscriptionValid(false);
         router.replace('/setup/subscription');
       }
     } else {
@@ -158,10 +176,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updatedUser = await apiRequest<IUser>('/auth/me');
     setUser(updatedUser);
 
+    setSubscriptionStatus(null);
+    setIsSubscriptionValid(false);
     router.replace('/setup/subscription');
     return result;
   };
-
 
   const logout = () => {
     localStorage.removeItem('klyro_access_token');
@@ -169,6 +188,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('klyro_active_org_id');
     setUser(null);
     setActiveOrgIdState(null);
+    setSubscriptionStatus(null);
+    setIsSubscriptionValid(false);
     router.push('/login');
   };
 
@@ -178,6 +199,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         activeOrgId,
         isLoading,
+        subscriptionStatus,
+        isSubscriptionValid,
         sendOtp,
         verifyOtp,
         createOrganization,
@@ -189,6 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
+
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
