@@ -5,8 +5,11 @@ import {
   Body,
   UseGuards,
   Headers,
+  Query,
+  Res,
   BadRequestException,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { SubscriptionService } from './subscription.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
@@ -49,7 +52,11 @@ export class SubscriptionController {
     @GetTenantContext() tenantContext: TenantContext,
     @Body() dto: CheckoutSubscriptionDto,
   ) {
-    return this.subscriptionService.checkout(tenantContext.organizationId, dto);
+    const res = await this.subscriptionService.checkout(tenantContext.organizationId, dto);
+    return {
+      ...res,
+      keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_TSlH8WnGPPBsO7',
+    };
   }
 
   @Post('autopay/setup')
@@ -77,11 +84,26 @@ export class SubscriptionController {
   }
 
   @Post('webhooks/razorpay')
-  async handleWebhook(@Headers('x-razorpay-signature') signature: string, @Body() body: any) {
-    if (!body || !body.event) {
-      throw new BadRequestException('Invalid webhook body');
+  async handleRazorpayWebhook(@Headers('x-razorpay-signature') signature: string, @Body() body: any) {
+    if (!body) {
+      throw new BadRequestException('Invalid Razorpay webhook body');
     }
-    await this.subscriptionService.handleRazorpayWebhook(body.event, body.payload || {});
-    return { received: true };
+    await this.subscriptionService.handleRazorpayWebhook(body);
+    return { status: 'ok' };
+  }
+
+  @Get('webhooks/razorpay')
+  async handleRazorpayGetCallback(
+    @Query('subscriptionId') subscriptionId: string,
+    @Res() res: Response,
+  ) {
+    if (subscriptionId) {
+      await this.subscriptionService.handleRazorpayWebhook({
+        event: 'subscription.charged',
+        payload: { subscription: { id: subscriptionId } },
+      });
+    }
+    const webUrl = process.env.WEB_URL || 'http://localhost:3000';
+    return res.redirect(`${webUrl}/dashboard`);
   }
 }

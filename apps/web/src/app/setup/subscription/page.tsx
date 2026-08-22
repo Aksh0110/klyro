@@ -17,7 +17,7 @@ interface SubscriptionPlan {
 
 export default function SubscriptionSetupPage() {
   const router = useRouter();
-  const { activeOrgId } = useAuth();
+  const { activeOrgId, user } = useAuth();
 
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
@@ -30,7 +30,16 @@ export default function SubscriptionSetupPage() {
 
   useEffect(() => {
     fetchPlans();
-  }, []);
+    if (activeOrgId) {
+      apiRequest<any>('/subscription/current', {}, activeOrgId)
+        .then((res) => {
+          if (res?.subscription?.status === 'ACTIVE' || res?.subscription?.status === 'TRIAL') {
+            router.push('/dashboard');
+          }
+        })
+        .catch(() => null);
+    }
+  }, [activeOrgId]);
 
   const fetchPlans = async () => {
     try {
@@ -69,26 +78,100 @@ export default function SubscriptionSetupPage() {
     }
   };
 
+  const [checkoutUrl, setCheckoutUrl] = useState<string>('');
+
+  const loadRazorpayScript = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (typeof window !== 'undefined' && (window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
   const handleProceedCheckout = async () => {
     if (!selectedPlanId) return;
     setSubmitting(true);
     setError('');
 
+    const targetOrgId =
+      activeOrgId ||
+      (typeof window !== 'undefined' ? localStorage.getItem('klyro_active_org_id') : null) ||
+      user?.organizationIds?.[0];
+
     try {
-      await apiRequest(
+      const res = await apiRequest<any>(
         '/subscription/checkout',
         {
           method: 'POST',
           body: JSON.stringify({ subscriptionPlanId: selectedPlanId }),
         },
-        activeOrgId || undefined,
+        targetOrgId || undefined,
       );
 
-      // Paid plan selection redirects to payment gateway / autopay setup step
-      setStep('AUTOPAY');
+      const plan = plans.find((p) => p._id === selectedPlanId);
+      const amountInPaise = (plan?.monthlyPrice || 799) * 100;
+      const keyId = res?.keyId || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_TSlH8WnGPPBsO7';
+      const orderId = res?.subscription?.providerSubscriptionId;
+
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        setError('Failed to load Razorpay SDK. Please check your network connection.');
+        setSubmitting(false);
+        return;
+      }
+
+      const options = {
+        key: keyId,
+        amount: amountInPaise,
+        currency: 'INR',
+        name: 'Klyro SaaS',
+        description: `${plan?.name || 'Gym'} Subscription`,
+        order_id: orderId && orderId.startsWith('order_') ? orderId : undefined,
+        handler: async function (response: any) {
+          try {
+            await apiRequest(
+              '/subscription/autopay/setup',
+              {
+                method: 'POST',
+                body: JSON.stringify({
+                  method: 'UPI_AUTOPAY',
+                  paymentId: response.razorpay_payment_id,
+                  orderId: response.razorpay_order_id,
+                  signature: response.razorpay_signature,
+                }),
+              },
+              targetOrgId || undefined,
+            );
+          } catch (err) {
+            console.error('Autopay setup error:', err);
+          }
+          window.location.href = '/dashboard';
+        },
+        prefill: {
+          name: user?.firstName || 'Gym Owner',
+          email: user?.email || '',
+          contact: user?.phone || '',
+        },
+        theme: {
+          color: '#3395ff',
+        },
+        modal: {
+          ondismiss: function () {
+            setSubmitting(false);
+          },
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
     } catch (err: any) {
-      setError(err.message || 'Failed to initiate checkout');
-    } finally {
+      setError(err.message || 'Failed to initiate Razorpay checkout');
       setSubmitting(false);
     }
   };
@@ -309,23 +392,40 @@ export default function SubscriptionSetupPage() {
         ) : (
           /* PAYMENT GATEWAY / AUTOPAY STEP FOR PAID PLANS */
           <div className="bg-[#122131] border border-[#273647] rounded-2xl p-8 shadow-xl max-w-xl mx-auto space-y-6">
-            <div className="flex items-center gap-3 p-4 rounded-xl bg-[#4edea3]/10 border border-[#4edea3]/20 text-[#4edea3]">
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 text-[#d0bcff]">
               <ShieldCheck className="w-6 h-6 flex-shrink-0" />
               <div>
-                <h4 className="font-bold text-xs">Simulated Payment Environment</h4>
-                <p className="text-[11px] text-[#4edea3]/80 mt-0.5">
-                  Initial subscription checkout created. Select payment method to complete payment and activate account.
+                <h4 className="font-bold text-xs">PhonePe Gateway Environment</h4>
+                <p className="text-[11px] text-[#d0bcff]/80 mt-0.5">
+                  Subscription order created. Redirect to PhonePe payment gateway or complete simulated setup.
                 </p>
               </div>
             </div>
+
+            {checkoutUrl && (
+              <div className="p-4 rounded-xl bg-[#1c2b3c] border border-[#3395ff]/40 text-center space-y-3">
+                <p className="text-xs font-semibold text-[#d4e4fa]">
+                  Razorpay Payment Gateway Ready
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { window.location.href = checkoutUrl; }}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-[#0c2340] to-[#3395ff] text-white font-extrabold text-xs rounded-xl shadow-lg hover:brightness-110 transition-all flex items-center justify-center gap-2"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span>Open Razorpay Payment Page</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-bold uppercase text-[#958ea0] mb-3">Select Payment / AutoPay Method</label>
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { id: 'UPI_AUTOPAY', label: 'UPI AutoPay' },
+                  { id: 'UPI_AUTOPAY', label: 'Razorpay UPI AutoPay' },
                   { id: 'CARD', label: 'Credit/Debit Card' },
-                  { id: 'EMANDATE', label: 'eMandate NetBanking' },
+                  { id: 'EMANDATE', label: 'NetBanking eMandate' },
                 ].map((m) => (
                   <button
                     key={m.id}
@@ -362,7 +462,7 @@ export default function SubscriptionSetupPage() {
                 ) : (
                   <>
                     <CreditCard className="w-4 h-4" />
-                    <span>Pay & Launch App</span>
+                    <span>Simulate Payment & Launch App</span>
                   </>
                 )}
               </button>

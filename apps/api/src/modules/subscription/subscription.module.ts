@@ -4,8 +4,8 @@ import { SubscriptionController } from './subscription.controller';
 import { SubscriptionService } from './subscription.service';
 import { EntitlementService } from './entitlement.service';
 import { EntitlementGuard } from './guards/entitlement.guard';
-import { RazorpayProvider } from './providers/razorpay.provider';
 import { DevPaymentProvider } from './providers/dev-payment.provider';
+import { RazorpayProvider } from './providers/razorpay.provider';
 import { SubscriptionPlan, SubscriptionPlanSchema } from './schemas/subscription-plan.schema';
 import { Subscription, SubscriptionSchema } from './schemas/subscription.schema';
 import { SubscriptionPayment, SubscriptionPaymentSchema } from './schemas/subscription-payment.schema';
@@ -28,8 +28,8 @@ import { UsersModule } from '../users/users.module';
     SubscriptionService,
     EntitlementService,
     EntitlementGuard,
-    RazorpayProvider,
     DevPaymentProvider,
+    RazorpayProvider,
   ],
   exports: [SubscriptionService, EntitlementService, EntitlementGuard],
 })

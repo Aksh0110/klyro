@@ -6,8 +6,8 @@ import { SubscriptionPlan } from './schemas/subscription-plan.schema';
 import { Subscription } from './schemas/subscription.schema';
 import { SubscriptionPayment } from './schemas/subscription-payment.schema';
 import { SubscriptionMandate } from './schemas/subscription-mandate.schema';
-import { RazorpayProvider } from './providers/razorpay.provider';
 import { DevPaymentProvider } from './providers/dev-payment.provider';
+import { RazorpayProvider } from './providers/razorpay.provider';
 import { Types } from 'mongoose';
 import { SUBSCRIPTION_STATUS, MANDATE_STATUS } from '@klyro/config';
 
@@ -31,6 +31,7 @@ describe('SubscriptionService', () => {
     mockSubPaymentModel = {
       create: jest.fn(),
       find: jest.fn(),
+      findById: jest.fn(),
     };
     mockMandateModel = {
       findOne: jest.fn(),
@@ -40,8 +41,8 @@ describe('SubscriptionService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SubscriptionService,
-        RazorpayProvider,
         DevPaymentProvider,
+        RazorpayProvider,
         {
           provide: ConfigService,
           useValue: { get: () => 'development' },

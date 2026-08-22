@@ -61,15 +61,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setActiveOrgId(userData.organizationIds[0]);
         }
 
-        // Route redirection check
+        // Route redirection check with strict subscription verification
         if (userData.organizationIds.length === 0 && pathname !== '/setup') {
           router.push('/setup');
-        } else if (userData.organizationIds.length > 0 && (pathname === '/login' || pathname === '/verify-otp' || pathname === '/setup')) {
-          const userRole = userData.roles?.find((r) => r.organizationId === (targetOrg || userData.organizationIds[0]))?.role || 'MEMBER';
-          if (userRole === 'MEMBER') {
-            router.push('/member');
-          } else {
-            router.push('/dashboard');
+        } else if (userData.organizationIds.length > 0) {
+          const checkOrgId = targetOrg || userData.organizationIds[0];
+          try {
+            const subData = await apiRequest<any>('/subscription/current', {}, checkOrgId);
+            const subStatus = subData?.subscription?.status;
+            const isPaidOrTrial = subStatus === 'ACTIVE' || subStatus === 'TRIAL' || subStatus === 'PENDING_AUTOPAY';
+
+            if (!isPaidOrTrial) {
+              if (pathname !== '/setup/subscription') {
+                router.push('/setup/subscription');
+              }
+            } else if (pathname === '/login' || pathname === '/verify-otp' || pathname === '/setup' || pathname === '/setup/subscription') {
+              const userRole = userData.roles?.find((r) => r.organizationId === checkOrgId)?.role || 'MEMBER';
+              if (userRole === 'MEMBER') {
+                router.push('/member');
+              } else {
+                router.push('/dashboard');
+              }
+            }
+          } catch {
+            if (pathname !== '/setup/subscription' && pathname !== '/login' && pathname !== '/verify-otp') {
+              router.push('/setup/subscription');
+            }
           }
         }
       } catch {
@@ -102,11 +119,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (data.user.organizationIds.length > 0) {
       const primaryOrgId = data.user.organizationIds[0];
       setActiveOrgId(primaryOrgId);
-      const userRole = data.user.roles?.find((r) => r.organizationId === primaryOrgId)?.role || 'MEMBER';
-      if (userRole === 'MEMBER') {
-        router.push('/member');
-      } else {
-        router.push('/dashboard');
+
+      try {
+        const subData = await apiRequest<any>('/subscription/current', {}, primaryOrgId);
+        const subStatus = subData?.subscription?.status;
+        const isPaidOrTrial = subStatus === 'ACTIVE' || subStatus === 'TRIAL' || subStatus === 'PENDING_AUTOPAY';
+
+        if (isPaidOrTrial) {
+          const userRole = data.user.roles?.find((r) => r.organizationId === primaryOrgId)?.role || 'MEMBER';
+          if (userRole === 'MEMBER') {
+            router.push('/member');
+          } else {
+            router.push('/dashboard');
+          }
+        } else {
+          router.push('/setup/subscription');
+        }
+      } catch {
+        router.push('/setup/subscription');
       }
     } else {
       router.push('/setup');

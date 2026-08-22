@@ -44,6 +44,12 @@ describe('CustomersService', () => {
     const branchId = new Types.ObjectId().toString();
 
     mockBranchesService.findOneByIdAndOrg.mockResolvedValue({});
+    mockCustomerModel.findOne.mockReturnValue({
+      sort: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      }),
+      exec: jest.fn().mockResolvedValue(null),
+    });
     mockCustomerModel.countDocuments.mockReturnValue({
       exec: jest.fn().mockResolvedValue(0),
     });
