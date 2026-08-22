@@ -236,88 +236,79 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Needs Attention Section */}
+        {/* Needs Attention Section (Identical Grid Design to Quick Actions) */}
         <div className="space-y-3">
           <h2 className="text-base font-bold text-[#d4e4fa] tracking-tight">Needs Attention</h2>
 
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-3 gap-2.5">
             {/* Card 1: Expiring Memberships */}
-            <div className="p-4 rounded-2xl bg-[#122131] border border-[#273647] space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-[#ffb95f]/15 text-[#ffb95f]">
-                  <RotateCcw className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-sm text-[#d4e4fa]">
-                    {retentionSummary?.expiringCount || 0} memberships expiring soon
-                  </h3>
-                  <p className="text-xs text-[#958ea0] mt-0.5">
-                    {retentionSummary?.expiringAmountAtRisk
-                      ? `₹${retentionSummary.expiringAmountAtRisk.toLocaleString()} revenue at risk.`
-                      : 'Action required to maintain recurring revenue.'}
-                  </p>
-                </div>
+            <button
+              onClick={() => {
+                setModalTab('renew');
+                setShowQuickModal(true);
+              }}
+              className="relative flex flex-col items-center justify-center p-3.5 rounded-2xl bg-[#122131] border border-[#273647] text-center hover:bg-[#1c2b3c] transition-all active:scale-95 group"
+            >
+              {(retentionSummary?.expiringCount || 0) > 0 && (
+                <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-[#ffb95f]/20 text-[#ffb95f] text-[9px] font-extrabold border border-[#ffb95f]/30">
+                  {retentionSummary.expiringCount}
+                </span>
+              )}
+              <div className="p-2 rounded-xl bg-[#ffb95f]/10 text-[#ffb95f] mb-2">
+                <RotateCcw className="w-5 h-5" />
               </div>
-              <button
-                onClick={() => {
-                  setModalTab('renew');
-                  setShowQuickModal(true);
-                }}
-                className="w-full py-2.5 rounded-xl bg-[#d0bcff] text-[#3c0091] font-bold text-xs hover:bg-[#d0bcff]/90 transition-all shadow-md active:scale-98"
-              >
-                View / Renew
-              </button>
-            </div>
+              <span className="text-[11px] font-bold text-[#d4e4fa] leading-tight">Expiring</span>
+              <span className="text-[9px] text-[#958ea0] mt-0.5 font-semibold truncate max-w-full">
+                {retentionSummary?.expiringCount || 0} Members
+              </span>
+            </button>
 
             {/* Card 2: Overdue Payments */}
-            <div className="p-4 rounded-2xl bg-[#122131] border border-[#273647] space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-[#ffb95f]/15 text-[#ffb95f]">
-                  <CreditCard className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-sm text-[#d4e4fa]">
-                    {retentionSummary?.overdueCount || 0} overdue payments • ₹{(retentionSummary?.overdueAmountTotal || finSummary?.totalOutstanding || 0).toLocaleString()}
-                  </h3>
-                  <p className="text-xs text-[#958ea0] mt-0.5">Outstanding balances need collection.</p>
-                </div>
+            <button
+              onClick={() => {
+                setModalTab('payment');
+                setShowQuickModal(true);
+              }}
+              className="relative flex flex-col items-center justify-center p-3.5 rounded-2xl bg-[#122131] border border-[#273647] text-center hover:bg-[#1c2b3c] transition-all active:scale-95 group"
+            >
+              {(retentionSummary?.overdueCount || 0) > 0 && (
+                <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-[#ffb95f]/20 text-[#ffb95f] text-[9px] font-extrabold border border-[#ffb95f]/30">
+                  {retentionSummary.overdueCount}
+                </span>
+              )}
+              <div className="p-2 rounded-xl bg-[#ffb95f]/10 text-[#ffb95f] mb-2">
+                <CreditCard className="w-5 h-5" />
               </div>
-              <button
-                onClick={() => {
-                  setModalTab('payment');
-                  setShowQuickModal(true);
-                }}
-                className="w-full py-2.5 rounded-xl bg-[#1c2b3c] border border-[#273647] text-[#d4e4fa] font-bold text-xs hover:bg-[#273647] transition-all active:scale-98"
-              >
-                Collect
-              </button>
-            </div>
+              <span className="text-[11px] font-bold text-[#d4e4fa] leading-tight">Overdue Dues</span>
+              <span className="text-[9px] text-[#958ea0] mt-0.5 font-semibold truncate max-w-full">
+                ₹{(retentionSummary?.overdueAmountTotal || finSummary?.totalOutstanding || 0).toLocaleString()}
+              </span>
+            </button>
 
             {/* Card 3: Inactive Members */}
-            <div className="p-4 rounded-2xl bg-[#122131] border border-[#273647] space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-[#d0bcff]/15 text-[#d0bcff]">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-sm text-[#d4e4fa]">
-                    {retentionSummary?.inactiveCount || 0} members inactive for 7+ days
-                  </h3>
-                  <p className="text-xs text-[#958ea0] mt-0.5">Retention risk identified.</p>
-                </div>
+            <button
+              onClick={() => {
+                setModalTab('announcement');
+                setShowQuickModal(true);
+              }}
+              className="relative flex flex-col items-center justify-center p-3.5 rounded-2xl bg-[#122131] border border-[#273647] text-center hover:bg-[#1c2b3c] transition-all active:scale-95 group"
+            >
+              {(retentionSummary?.inactiveCount || 0) > 0 && (
+                <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-[#d0bcff]/20 text-[#d0bcff] text-[9px] font-extrabold border border-[#d0bcff]/30">
+                  {retentionSummary.inactiveCount}
+                </span>
+              )}
+              <div className="p-2 rounded-xl bg-[#d0bcff]/10 text-[#d0bcff] mb-2">
+                <Clock className="w-5 h-5" />
               </div>
-              <button
-                onClick={() => {
-                  setModalTab('announcement');
-                  setShowQuickModal(true);
-                }}
-                className="w-full py-2.5 rounded-xl bg-[#1c2b3c] border border-[#273647] text-[#d4e4fa] font-bold text-xs hover:bg-[#273647] transition-all active:scale-98"
-              >
-                Follow Up
-              </button>
-            </div>
+              <span className="text-[11px] font-bold text-[#d4e4fa] leading-tight">Inactive</span>
+              <span className="text-[9px] text-[#958ea0] mt-0.5 font-semibold truncate max-w-full">
+                {retentionSummary?.inactiveCount || 0} Members
+              </span>
+            </button>
           </div>
         </div>
+
 
         {/* Quick Actions Grid */}
         <div className="space-y-3">
