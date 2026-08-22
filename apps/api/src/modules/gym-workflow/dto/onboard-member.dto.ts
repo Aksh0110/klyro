@@ -16,10 +16,12 @@ export class OnboardMemberDto {
   lastName?: string;
 
   @IsString()
-  @IsNotEmpty()
-  @Length(10, 10, { message: 'Mobile number must be standard 10 digits' })
-  @Matches(/^[6-9]\d{9}$/, { message: 'Mobile number must be a valid 10-digit Indian mobile number' })
+  @IsNotEmpty({ message: 'Mobile number is required' })
+  @Matches(/^(\+91[\s-]?)?[6-9]\d{9}$|^[6-9]\d{9}$/, {
+    message: 'Mobile number must be a valid 10-digit mobile number (e.g., 9876543210 or +919876543210)',
+  })
   phone: string;
+
 
   @IsString()
   @IsOptional()

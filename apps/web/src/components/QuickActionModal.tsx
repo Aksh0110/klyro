@@ -554,15 +554,15 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                   <input
                     type="tel"
                     required
-                    maxLength={10}
-                    pattern="[0-9]{10}"
-                    inputMode="numeric"
+                    maxLength={13}
+                    inputMode="tel"
                     placeholder="e.g. 9876543210"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, '').slice(0, 13))}
                     className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
                   />
                 </div>
+
 
                 <div>
                   <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Membership Plan *</label>
