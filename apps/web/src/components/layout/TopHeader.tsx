@@ -67,17 +67,16 @@ export const TopHeader: React.FC = () => {
       try {
         await promptEvent.prompt();
         const choice = await promptEvent.userChoice;
-        if (choice.outcome === 'accepted') {
+        if (choice?.outcome === 'accepted') {
           setCanInstallPwa(false);
           (window as any).deferredPwaPrompt = null;
         }
       } catch (err) {
         console.error('PWA install prompt error:', err);
       }
-    } else {
-      alert('Install Klyro Mobile App:\n\n1. Tap your mobile browser menu (⋮ or Share icon).\n2. Tap "Add to Home Screen" or "Install App".\n\nKlyro will be added to your home screen with a full-screen app experience.');
     }
   };
+
 
 
 

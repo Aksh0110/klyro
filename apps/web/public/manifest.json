@@ -1,28 +1,32 @@
 {
+  "id": "klyro-pwa-app",
   "short_name": "Klyro",
-  "name": "Klyro Multi-Vertical SaaS",
+  "name": "Klyro Gym SaaS",
   "icons": [
-    {
-      "src": "/icon.svg",
-      "type": "image/svg+xml",
-      "sizes": "512x512 192x192 128x128 64x64",
-      "purpose": "any maskable"
-    },
     {
       "src": "/icon-192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "/icon-512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512 192x192"
     }
   ],
-  "start_url": "/",
+  "start_url": "/dashboard",
+  "scope": "/",
   "background_color": "#051424",
   "theme_color": "#8b5cf6",
   "display": "standalone",
   "orientation": "portrait"
 }
+
 
