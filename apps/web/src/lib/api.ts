@@ -14,12 +14,17 @@ export function getApiBaseUrl(): string {
       return 'http://localhost:4000/api/v1';
     }
 
+    if (hostname.includes('gymbook.ai')) {
+      return 'https://klyrobackend.gymbook.ai/api/v1';
+    }
+
     // Production domain fallback (NGINX reverse proxy handles routing without port)
     return `${protocol}//${hostname}/api/v1`;
   }
 
   return 'http://localhost:4000/api/v1';
 }
+
 
 export const API_BASE_URL = getApiBaseUrl();
 
