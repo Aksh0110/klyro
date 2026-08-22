@@ -1,32 +1,40 @@
 {
-  "id": "klyro-pwa-app",
   "short_name": "Klyro",
   "name": "Klyro Gym SaaS",
+  "description": "Streamlined Gym Management Platform",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#051424",
+  "theme_color": "#8b5cf6",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/icon-192.png",
-      "type": "image/png",
       "sizes": "192x192",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.png",
-      "type": "image/png",
       "sizes": "512x512",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/icon.svg",
-      "type": "image/svg+xml",
-      "sizes": "512x512 192x192"
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ],
-  "start_url": "/dashboard",
-  "scope": "/",
-  "background_color": "#051424",
-  "theme_color": "#8b5cf6",
-  "display": "standalone",
-  "orientation": "portrait"
+  ]
 }
+
 
 
