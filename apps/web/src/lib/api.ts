@@ -63,13 +63,14 @@ export async function apiRequest<T>(
     const errorCode = json?.error?.code || json?.code;
 
     if (
-      (errorCode === 'SUBSCRIPTION_ENTITLEMENT_REQUIRED' || response.status === 402) &&
+      (errorCode === 'SUBSCRIPTION_ENTITLEMENT_REQUIRED' || response.status === 402 || response.status === 403) &&
       typeof window !== 'undefined' &&
       window.location.pathname !== '/setup/subscription' &&
       window.location.pathname !== '/login'
     ) {
-      window.location.href = '/setup/subscription';
+      window.location.replace('/setup/subscription');
     }
+
 
     throw new Error(errorMsg);
   }

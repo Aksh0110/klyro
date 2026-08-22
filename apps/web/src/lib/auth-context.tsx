@@ -63,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Route redirection check with strict subscription verification
         if (userData.organizationIds.length === 0 && pathname !== '/setup') {
-          router.push('/setup');
+          router.replace('/setup');
         } else if (userData.organizationIds.length > 0) {
           const checkOrgId = targetOrg || userData.organizationIds[0];
           try {
@@ -73,19 +73,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             if (!isPaidOrTrial) {
               if (pathname !== '/setup/subscription') {
-                router.push('/setup/subscription');
+                router.replace('/setup/subscription');
               }
             } else if (pathname === '/login' || pathname === '/verify-otp' || pathname === '/setup' || pathname === '/setup/subscription') {
               const userRole = userData.roles?.find((r) => r.organizationId === checkOrgId)?.role || 'MEMBER';
               if (userRole === 'MEMBER') {
-                router.push('/member');
+                router.replace('/member');
               } else {
-                router.push('/dashboard');
+                router.replace('/dashboard');
               }
             }
           } catch {
             if (pathname !== '/setup/subscription' && pathname !== '/login' && pathname !== '/verify-otp') {
-              router.push('/setup/subscription');
+              router.replace('/setup/subscription');
             }
           }
         }
@@ -128,18 +128,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (isPaidOrTrial) {
           const userRole = data.user.roles?.find((r) => r.organizationId === primaryOrgId)?.role || 'MEMBER';
           if (userRole === 'MEMBER') {
-            router.push('/member');
+            router.replace('/member');
           } else {
-            router.push('/dashboard');
+            router.replace('/dashboard');
           }
         } else {
-          router.push('/setup/subscription');
+          router.replace('/setup/subscription');
         }
       } catch {
-        router.push('/setup/subscription');
+        router.replace('/setup/subscription');
       }
     } else {
-      router.push('/setup');
+      router.replace('/setup');
     }
 
     return data;
@@ -158,9 +158,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updatedUser = await apiRequest<IUser>('/auth/me');
     setUser(updatedUser);
 
-    router.push('/setup/subscription');
+    router.replace('/setup/subscription');
     return result;
   };
+
 
   const logout = () => {
     localStorage.removeItem('klyro_access_token');

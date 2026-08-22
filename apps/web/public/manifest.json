@@ -3,6 +3,12 @@
   "name": "Klyro Multi-Vertical SaaS",
   "icons": [
     {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512 192x192 128x128 64x64",
+      "purpose": "any maskable"
+    },
+    {
       "src": "/icon-192.png",
       "type": "image/png",
       "sizes": "192x192"
@@ -14,8 +20,9 @@
     }
   ],
   "start_url": "/",
-  "background_color": "#0f172a",
-  "theme_color": "#6366f1",
+  "background_color": "#051424",
+  "theme_color": "#8b5cf6",
   "display": "standalone",
   "orientation": "portrait"
 }
+

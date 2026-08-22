@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { BottomNav } from './BottomNav';
 import { useAuth } from '@/lib/auth-context';
+import { PwaInstallPrompt } from '../PwaInstallPrompt';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isLoading } = useAuth();
@@ -33,6 +34,10 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* Mobile Bottom Navigation */}
       <BottomNav />
+
+      {/* Mobile PWA Home Screen Install Prompt */}
+      <PwaInstallPrompt />
     </div>
   );
 };
+
