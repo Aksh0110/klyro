@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LogOut, Dumbbell, ShieldCheck, Bell, Search, Plus, User } from 'lucide-react';
+import { LogOut, Dumbbell, ShieldCheck, Bell, Search, Plus, User, Download } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { apiRequest } from '@/lib/api';
 import { ICustomer } from '@klyro/types';
@@ -13,6 +13,7 @@ export const TopHeader: React.FC = () => {
   const router = useRouter();
   const { user, activeOrgId, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [canInstallPwa, setCanInstallPwa] = useState(false);
 
   // Global Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -26,6 +27,36 @@ export const TopHeader: React.FC = () => {
 
   const userRole = user?.roles.find((r) => r.organizationId === activeOrgId)?.role || 'MEMBER';
   const isManagerOrOwner = userRole === 'OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'MANAGER';
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true;
+
+    if (!isStandalone) {
+      setCanInstallPwa(true);
+    }
+  }, []);
+
+  const handleHeaderInstallClick = async () => {
+    if (typeof window === 'undefined') return;
+    const promptEvent = (window as any).deferredPwaPrompt;
+    if (promptEvent) {
+      try {
+        await promptEvent.prompt();
+        const choice = await promptEvent.userChoice;
+        if (choice.outcome === 'accepted') {
+          setCanInstallPwa(false);
+        }
+      } catch (err) {
+        console.error('Install prompt error:', err);
+      }
+    } else {
+      alert('To install Klyro on your mobile home screen: tap browser menu (⋮ or Share icon) and select "Add to Home Screen" or "Install App".');
+    }
+  };
+
 
   useEffect(() => {
     if (!activeOrgId) return;
@@ -160,6 +191,18 @@ export const TopHeader: React.FC = () => {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2.5">
+          {/* Mobile PWA Install Shortcut Button */}
+          {canInstallPwa && (
+            <button
+              onClick={handleHeaderInstallClick}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-purple-600/20 border border-purple-500/30 text-purple-300 hover:bg-purple-600/30 font-bold text-xs transition-all active:scale-95 shrink-0"
+              title="Install Klyro App Shortcut to Home Screen"
+            >
+              <Download className="w-3.5 h-3.5 text-purple-300" />
+              <span className="text-[11px] font-extrabold">Install App</span>
+            </button>
+          )}
+
           {/* + Quick Action Button */}
           {isManagerOrOwner && (
             <button
@@ -173,6 +216,7 @@ export const TopHeader: React.FC = () => {
               <span className="hidden sm:inline">Quick Action</span>
             </button>
           )}
+
 
           {/* Notifications (Member Portal only) */}
           {!isManagerOrOwner && (
