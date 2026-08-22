@@ -10,6 +10,7 @@ import {
   CreditCard,
   ShieldCheck,
   ArrowRight,
+  ArrowLeft,
   Loader2,
   Sparkles,
   Gift,
@@ -29,9 +30,21 @@ interface SubscriptionPlan {
 
 export default function SubscriptionSetupPage() {
   const router = useRouter();
-  const { activeOrgId, user } = useAuth();
+  const { activeOrgId, user, logout } = useAuth();
+
+  const handleBack = () => {
+    if (step === 'AUTOPAY') {
+      setStep('PLAN');
+    } else if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      logout();
+      router.push('/login');
+    }
+  };
 
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [autopayMethod, setAutopayMethod] = useState<'UPI_AUTOPAY' | 'CARD' | 'EMANDATE'>('UPI_AUTOPAY');
   const [loading, setLoading] = useState(true);
@@ -258,7 +271,20 @@ export default function SubscriptionSetupPage() {
 
   return (
     <div className="min-h-screen bg-[#051424] text-[#d4e4fa] flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8 relative">
+      {/* Top Back Navigation Button */}
+      <div className="absolute top-6 left-6 z-20">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1c2b3c] hover:bg-[#273647] text-[#958ea0] hover:text-[#d4e4fa] text-xs font-semibold transition-all border border-[#273647]"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>{step === 'AUTOPAY' ? 'Back to Plans' : 'Back'}</span>
+        </button>
+      </div>
+
       {/* Floating Notifications Bar */}
+
       <div className="sm:mx-auto sm:w-full sm:max-w-4xl mb-4 space-y-3">
         {successMessage && (
           <div className="p-4 rounded-2xl bg-[#4edea3]/15 border border-[#4edea3]/40 text-[#4edea3] text-xs font-bold flex items-center justify-between shadow-xl shadow-emerald-950/40 animate-in slide-in-from-top duration-300">
