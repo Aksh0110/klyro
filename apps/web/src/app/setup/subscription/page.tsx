@@ -154,7 +154,7 @@ export default function SubscriptionSetupPage() {
           window.location.href = '/dashboard';
         },
         prefill: {
-          name: user?.firstName || 'Gym Owner',
+          name: user?.name || 'Gym Owner',
           email: user?.email || '',
           contact: user?.phone || '',
         },
