@@ -1,10 +1,11 @@
 import React from 'react';
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = { className: 'font-sans' };
+
+
 
 export const metadata: Metadata = {
   title: 'Klyro — Multi-Vertical SaaS Platform',
