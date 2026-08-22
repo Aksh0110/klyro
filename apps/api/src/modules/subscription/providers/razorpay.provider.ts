@@ -16,12 +16,13 @@ export class RazorpayProvider implements PaymentProvider {
   constructor(private readonly configService: ConfigService) {}
 
   private get keyId(): string {
-    return this.configService.get<string>('RAZORPAY_KEY_ID') || 'rzp_test_key_id';
+    return this.configService.get<string>('RAZORPAY_KEY_ID') || process.env.RAZORPAY_KEY_ID || 'rzp_test_TSlH8WnGPPBsO7';
   }
 
   private get keySecret(): string {
-    return this.configService.get<string>('RAZORPAY_KEY_SECRET') || 'rzp_test_key_secret';
+    return this.configService.get<string>('RAZORPAY_KEY_SECRET') || process.env.RAZORPAY_KEY_SECRET || 'G9m0zRq5kO6aCd30x1jcpfeY';
   }
+
 
   async createSubscription(planCode: string, amount: number): Promise<CreateSubscriptionResult> {
     const auth = Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64');

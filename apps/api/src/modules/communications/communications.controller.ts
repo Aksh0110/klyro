@@ -13,6 +13,7 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { EntitlementGuard } from '../subscription/guards/entitlement.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { GetCurrentUser as CurrentUser, GetTenantContext as TenantContextDecorator } from '../../common/decorators/tenant.decorator';
 import { TenantContext } from '@klyro/types';
@@ -29,8 +30,9 @@ import { RetentionInsightService } from './services/retention-insight.service';
 import { AutomatedTriggersService } from './services/automated-triggers.service';
 
 @Controller()
-@UseGuards(JwtAuthGuard, TenantGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionsGuard, EntitlementGuard)
 export class CommunicationsController {
+
   constructor(
     private readonly announcementsService: AnnouncementsService,
     private readonly notificationService: NotificationService,

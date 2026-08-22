@@ -13,6 +13,7 @@ import { MembershipPlansModule } from '../membership-plans/membership-plans.modu
 import { GymBillingModule } from '../gym-billing/gym-billing.module';
 import { BranchesModule } from '../branches/branches.module';
 import { CommunicationsModule } from '../communications/communications.module';
+import { SubscriptionModule } from '../subscription/subscription.module';
 import { GymWorkflowService } from './gym-workflow.service';
 import { GymWorkflowController } from './gym-workflow.controller';
 
@@ -33,8 +34,10 @@ import { GymWorkflowController } from './gym-workflow.controller';
     GymBillingModule,
     BranchesModule,
     CommunicationsModule,
+    SubscriptionModule,
   ],
   controllers: [GymWorkflowController],
+
   providers: [GymWorkflowService],
   exports: [GymWorkflowService],
 })
