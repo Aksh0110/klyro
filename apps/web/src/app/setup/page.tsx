@@ -1,18 +1,29 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Building2, ArrowRight, Dumbbell } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Building2, ArrowRight, ArrowLeft, Dumbbell } from 'lucide-react';
 import { VerticalType, VERTICALS } from '@klyro/config';
 import { useAuth } from '@/lib/auth-context';
 
 export default function SetupPage() {
+  const router = useRouter();
   const [ownerName, setOwnerName] = useState('');
   const [ownerEmail, setOwnerEmail] = useState('');
   const [name, setName] = useState('');
   const [vertical] = useState<VerticalType>(VERTICALS.GYM);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { createOrganization } = useAuth();
+  const { createOrganization, logout } = useAuth();
+
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      logout();
+      router.push('/login');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,9 +41,19 @@ export default function SetupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col justify-center items-center p-4 py-10">
-      <div className="w-full max-w-xl bg-card border border-border rounded-2xl p-8 shadow-2xl shadow-indigo-950/20">
-        <div className="flex flex-col items-center text-center mb-6">
+    <div className="min-h-screen bg-background flex flex-col justify-center items-center p-4 py-10 relative">
+      <div className="w-full max-w-xl bg-card border border-border rounded-2xl p-8 shadow-2xl shadow-indigo-950/20 relative">
+        {/* Top Back Navigation Button */}
+        <button
+          type="button"
+          onClick={handleBack}
+          className="absolute top-6 left-6 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground text-xs font-semibold transition-all border border-border"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back</span>
+        </button>
+
+        <div className="flex flex-col items-center text-center mb-6 pt-4 sm:pt-0">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30 mb-4">
             <Building2 className="w-7 h-7" />
           </div>
@@ -41,6 +62,7 @@ export default function SetupPage() {
             Enter your name, optional email, and business name to customize your workspace
           </p>
         </div>
+
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
