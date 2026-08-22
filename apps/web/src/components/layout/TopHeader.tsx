@@ -30,32 +30,55 @@ export const TopHeader: React.FC = () => {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true;
 
-    if (!isStandalone) {
-      setCanInstallPwa(true);
+    if (isStandalone) {
+      setCanInstallPwa(false);
+      return;
     }
+
+    setCanInstallPwa(true);
+
+    const handlePromptReady = () => {
+      setCanInstallPwa(true);
+    };
+
+    const handleAppInstalled = () => {
+      setCanInstallPwa(false);
+      (window as any).deferredPwaPrompt = null;
+    };
+
+    (window as any).onPwaPromptReady = handlePromptReady;
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
   }, []);
 
   const handleHeaderInstallClick = async () => {
     if (typeof window === 'undefined') return;
     const promptEvent = (window as any).deferredPwaPrompt;
+
     if (promptEvent) {
       try {
         await promptEvent.prompt();
         const choice = await promptEvent.userChoice;
         if (choice.outcome === 'accepted') {
           setCanInstallPwa(false);
+          (window as any).deferredPwaPrompt = null;
         }
       } catch (err) {
-        console.error('Install prompt error:', err);
+        console.error('PWA install prompt error:', err);
       }
     } else {
-      alert('To install Klyro on your mobile home screen: tap browser menu (⋮ or Share icon) and select "Add to Home Screen" or "Install App".');
+      alert('Install Klyro Mobile App:\n\n1. Tap your mobile browser menu (⋮ or Share icon).\n2. Tap "Add to Home Screen" or "Install App".\n\nKlyro will be added to your home screen with a full-screen app experience.');
     }
   };
+
 
 
   useEffect(() => {

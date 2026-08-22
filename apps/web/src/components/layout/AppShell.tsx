@@ -1,13 +1,12 @@
 'use client';
 
 import React from 'react';
+
 import { usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { BottomNav } from './BottomNav';
 import { useAuth } from '@/lib/auth-context';
-import { PwaInstallPrompt } from '../PwaInstallPrompt';
-
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isLoading, isSubscriptionValid, user } = useAuth();
@@ -55,11 +54,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* Mobile Bottom Navigation */}
       <BottomNav />
-
-      {/* Mobile PWA Home Screen Install Prompt */}
-      <PwaInstallPrompt />
     </div>
   );
 };
+
 
 
