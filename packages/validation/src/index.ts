@@ -108,6 +108,14 @@ export class CreateOrganizationDto {
   vertical!: VerticalType;
 
   @IsOptional()
+  @IsString()
+  ownerName?: string;
+
+  @IsOptional()
+  @IsEmail({}, { message: 'Owner email must be a valid email address' })
+  ownerEmail?: string;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => OrganizationContactDto)
   contact?: OrganizationContactDto;

@@ -12,7 +12,7 @@ interface AuthContextType {
   isLoading: boolean;
   sendOtp: (phone: string) => Promise<SendOtpResponseData>;
   verifyOtp: (phone: string, otp: string) => Promise<AuthResponseData>;
-  createOrganization: (name: string, vertical: VerticalType) => Promise<any>;
+  createOrganization: (name: string, vertical: VerticalType, ownerName?: string, ownerEmail?: string) => Promise<any>;
   setActiveOrgId: (orgId: string) => void;
   logout: () => void;
 }
@@ -145,10 +145,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return data;
   };
 
-  const createOrganization = async (name: string, vertical: VerticalType) => {
+  const createOrganization = async (name: string, vertical: VerticalType, ownerName?: string, ownerEmail?: string) => {
     const result = await apiRequest<{ organization: IOrganization }>('/organizations', {
       method: 'POST',
-      body: JSON.stringify({ name, vertical }),
+      body: JSON.stringify({ name, vertical, ownerName, ownerEmail }),
     });
 
     const newOrgId = result.organization._id;

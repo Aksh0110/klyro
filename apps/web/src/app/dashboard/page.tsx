@@ -155,7 +155,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-[#d4e4fa]">
-              {getTimeGreeting()}, {user?.phone ? `+${user.phone.slice(-4)}` : 'Gym Owner'} 👋
+              {getTimeGreeting()}, {user?.name ? user.name : user?.phone ? `Owner (+${user.phone.slice(-4)})` : 'Gym Owner'} 👋
             </h1>
             <p className="text-xs text-[#958ea0]">
               {org?.name || 'Klyro Gym'} • What needs your attention today?

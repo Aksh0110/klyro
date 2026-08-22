@@ -63,4 +63,15 @@ export class UsersService {
   async updateLastLogin(userId: string): Promise<void> {
     await this.userModel.findByIdAndUpdate(userId, { lastLoginAt: new Date() }).exec();
   }
+
+  async updateUserProfile(userId: string, name?: string, email?: string): Promise<UserDocument> {
+    const user = await this.findById(userId);
+    if (name !== undefined && name !== null && name.trim() !== '') {
+      user.name = name.trim();
+    }
+    if (email !== undefined && email !== null && email.trim() !== '') {
+      user.email = email.trim();
+    }
+    return user.save();
+  }
 }
