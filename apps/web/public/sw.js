@@ -1,5 +1,5 @@
-const CACHE_NAME = 'klyro-cache-v1';
-const urlsToCache = ['/', '/manifest.json'];
+const CACHE_NAME = 'klyro-cache-v2';
+const urlsToCache = ['/manifest.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -30,9 +30,19 @@ self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/api/')) {
     return;
   }
+
+  // Network first for navigation requests to allow server redirects
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request);
     })
   );
 });
+
