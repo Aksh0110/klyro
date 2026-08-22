@@ -21,10 +21,6 @@ export const PwaInstallPrompt: React.FC = () => {
 
     if (isStandalone) return;
 
-    // Check if dismissed in current session
-    const isDismissed = sessionStorage.getItem('klyro_pwa_dismissed') === 'true';
-    if (isDismissed) return;
-
     // Mobile device detection
     const ua = navigator.userAgent.toLowerCase();
     const mobileCheck =
@@ -38,35 +34,43 @@ export const PwaInstallPrompt: React.FC = () => {
     setIsIos(iosCheck);
 
     if (iosCheck) {
-      // Show prompt for iOS mobile browsers
-      const timer = setTimeout(() => setShowPrompt(true), 2000);
-      return () => clearTimeout(timer);
+      setShowPrompt(true);
+      return;
     }
 
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      (window as any).deferredPwaPrompt = e;
       setShowPrompt(true);
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    const handleAppInstalled = () => {
+      setShowPrompt(false);
+      setDeferredPrompt(null);
+      (window as any).deferredPwaPrompt = null;
+    };
 
-    // Fallback timer if event doesn't fire immediately
-    const fallbackTimer = setTimeout(() => {
-      setShowPrompt(true);
-    }, 2500);
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    if ((window as any).deferredPwaPrompt) {
+      setDeferredPrompt((window as any).deferredPwaPrompt);
+    }
+    setShowPrompt(true);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      clearTimeout(fallbackTimer);
+      window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, [user]);
 
   const handleInstallClick = async () => {
-    if (deferredPrompt) {
+    const promptEvent = deferredPrompt || (typeof window !== 'undefined' ? (window as any).deferredPwaPrompt : null);
+    if (promptEvent) {
       try {
-        await deferredPrompt.prompt();
-        const choiceResult = await deferredPrompt.userChoice;
+        await promptEvent.prompt();
+        const choiceResult = await promptEvent.userChoice;
         if (choiceResult.outcome === 'accepted') {
           setShowPrompt(false);
         }
@@ -74,15 +78,15 @@ export const PwaInstallPrompt: React.FC = () => {
         console.error('PWA install error:', err);
       } finally {
         setDeferredPrompt(null);
+        if (typeof window !== 'undefined') {
+          (window as any).deferredPwaPrompt = null;
+        }
       }
     }
   };
 
   const handleDismiss = () => {
     setShowPrompt(false);
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('klyro_pwa_dismissed', 'true');
-    }
   };
 
   if (!user || !isMobile || !showPrompt) return null;
@@ -146,7 +150,7 @@ export const PwaInstallPrompt: React.FC = () => {
               onClick={handleDismiss}
               className="py-2.5 px-3 bg-[#1c2b3c] border border-[#273647] text-[#958ea0] font-bold text-xs rounded-xl hover:text-[#d4e4fa] transition-all"
             >
-              Not Now
+              Close
             </button>
           </div>
         ) : (
@@ -161,4 +165,5 @@ export const PwaInstallPrompt: React.FC = () => {
     </div>
   );
 };
+
 
