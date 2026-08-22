@@ -1,26 +1,24 @@
 export function getApiBaseUrl(): string {
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
 
+  if (envUrl && envUrl.trim() !== '') {
+    const clean = envUrl.replace(/\/+$/, '');
+    return clean.endsWith('/api/v1') ? clean : `${clean}/api/v1`;
+  }
+
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
 
-    if (envUrl) {
-      const isEnvLocalhost = envUrl.includes('localhost') || envUrl.includes('127.0.0.1');
-      const isClientLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
-
-      if (!isEnvLocalhost || isClientLocalhost) {
-        const clean = envUrl.replace(/\/+$/, '');
-        return clean.endsWith('/api/v1') ? clean : `${clean}/api/v1`;
-      }
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:4000/api/v1';
     }
 
-    // Dynamic browser fallback: match current server hostname/IP on API port 4000
-    return `${protocol}//${hostname}:4000/api/v1`;
+    // Production domain fallback (NGINX reverse proxy handles routing without port)
+    return `${protocol}//${hostname}/api/v1`;
   }
 
-  const clean = (envUrl || 'http://localhost:4000/api/v1').replace(/\/+$/, '');
-  return clean.endsWith('/api/v1') ? clean : `${clean}/api/v1`;
+  return 'http://localhost:4000/api/v1';
 }
 
 export const API_BASE_URL = getApiBaseUrl();
