@@ -7,20 +7,26 @@ import { AuthProvider } from '@/lib/auth-context';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Klyro Gym — Multi-Vertical SaaS Platform',
+  title: 'Klyro — Multi-Vertical SaaS Platform',
   description: 'Streamlined Gym Management Platform with Multi-Tenant Security',
   manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    title: 'Klyro',
+    statusBarStyle: 'black-translucent',
+  },
   icons: {
     apple: '/icon-192.png',
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#6366f1',
+  themeColor: '#051424',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -28,13 +34,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="dark">
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#8b5cf6" />
+        <meta name="theme-color" content="#051424" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Klyro" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
+
 
       <body className={inter.className}>
         <AuthProvider>{children}</AuthProvider>

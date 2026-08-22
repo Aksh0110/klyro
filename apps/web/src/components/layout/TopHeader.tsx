@@ -146,7 +146,8 @@ export const TopHeader: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-30 w-full bg-card/80 backdrop-blur-md border-b border-border px-4 py-2.5 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-30 w-full bg-card/80 backdrop-blur-md border-b border-border px-4 py-2.5 pt-[calc(0.625rem+env(safe-area-inset-top,0px))] flex items-center justify-between gap-4">
+
         {/* Mobile Brand / Tenant Badge */}
         <div className="flex items-center gap-3">
           <div className="md:hidden w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white">

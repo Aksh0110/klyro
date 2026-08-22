@@ -1,12 +1,12 @@
 {
+  "name": "Klyro",
   "short_name": "Klyro",
-  "name": "Klyro Gym SaaS",
   "description": "Streamlined Gym Management Platform",
-  "start_url": "/dashboard",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#051424",
-  "theme_color": "#8b5cf6",
+  "theme_color": "#051424",
   "orientation": "portrait",
   "icons": [
     {
@@ -35,6 +35,7 @@
     }
   ]
 }
+
 
 
 
