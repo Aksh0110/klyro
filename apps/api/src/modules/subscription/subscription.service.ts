@@ -213,24 +213,22 @@ export class SubscriptionService {
       subscriptionId: subscription._id,
       amount: plan.monthlyPrice,
       currency: 'INR',
-      status: paymentRes.status === 'SUCCESS' ? SUBSCRIPTION_PAYMENT_STATUS.SUCCESS : SUBSCRIPTION_PAYMENT_STATUS.FAILED,
+      status: SUBSCRIPTION_PAYMENT_STATUS.PENDING,
       method: this.provider.name,
       provider: this.provider.name,
       providerPaymentId: paymentRes.providerPaymentId,
       providerOrderId: paymentRes.providerOrderId,
-      paidAt: paymentRes.status === 'SUCCESS' ? new Date() : undefined,
     });
 
-    if (paymentRes.status === 'SUCCESS') {
-      subscription.status = SUBSCRIPTION_STATUS.PENDING_AUTOPAY;
-      await subscription.save();
-    }
+    // Note: Subscription status MUST remain PENDING_PAYMENT here.
+    // It will ONLY transition to ACTIVE once payment is confirmed via setupAutopay or Webhook.
 
     return {
       subscription,
       payment,
       checkoutUrl: providerRes.checkoutUrl,
     };
+
   }
 
   async setupAutopay(organizationId: string, dto: SetupAutopayDto) {
