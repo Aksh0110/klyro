@@ -235,6 +235,8 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
       return;
     }
 
+    const cleanedPhone = sanitizePhoneNumber(phone);
+
     setIsSubmitting(true);
     setErrorMessage(null);
     setSuccessMessage(null);
