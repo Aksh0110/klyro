@@ -4,7 +4,19 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { apiRequest } from '@/lib/api';
-import { Dumbbell, Check, CreditCard, ShieldCheck, ArrowRight, Loader2, Sparkles, Gift } from 'lucide-react';
+import {
+  Dumbbell,
+  Check,
+  CreditCard,
+  ShieldCheck,
+  ArrowRight,
+  Loader2,
+  Sparkles,
+  Gift,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+} from 'lucide-react';
 
 interface SubscriptionPlan {
   _id: string;
@@ -27,6 +39,7 @@ export default function SubscriptionSetupPage() {
   const [trialActivating, setTrialActivating] = useState(false);
   const [step, setStep] = useState<'PLAN' | 'AUTOPAY'>('PLAN');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     fetchPlans();
@@ -58,6 +71,7 @@ export default function SubscriptionSetupPage() {
   const handleStartFreeTrial = async () => {
     setTrialActivating(true);
     setError('');
+    setSuccessMessage('');
 
     try {
       await apiRequest(
@@ -69,11 +83,12 @@ export default function SubscriptionSetupPage() {
         activeOrgId || undefined,
       );
 
-      // Free trial redirects directly to app
-      router.push('/dashboard');
+      setSuccessMessage('🎉 60-Day Free Trial activated! Directing you to dashboard...');
+      setTimeout(() => {
+        window.location.replace('/dashboard');
+      }, 1200);
     } catch (err: any) {
       setError(err.message || 'Failed to activate 60-day free trial');
-    } finally {
       setTrialActivating(false);
     }
   };
@@ -98,6 +113,7 @@ export default function SubscriptionSetupPage() {
     if (!selectedPlanId) return;
     setSubmitting(true);
     setError('');
+    setSuccessMessage('');
 
     const targetOrgId =
       activeOrgId ||
@@ -137,23 +153,36 @@ export default function SubscriptionSetupPage() {
         order_id: isValidRealOrderId ? orderId : undefined,
         handler: async function (response: any) {
           try {
-            await apiRequest(
-              '/subscription/autopay/setup',
+            setSubmitting(true);
+            setError('');
+            const verifyRes = await apiRequest<any>(
+              '/subscription/verify-payment',
               {
                 method: 'POST',
                 body: JSON.stringify({
-                  method: 'UPI_AUTOPAY',
-                  paymentId: response.razorpay_payment_id || `pay_rzp_${Date.now()}`,
-                  orderId: response.razorpay_order_id || orderId,
-                  signature: response.razorpay_signature || 'rzp_sig_mock',
+                  razorpayPaymentId: response.razorpay_payment_id || `pay_rzp_${Date.now()}`,
+                  razorpayOrderId: response.razorpay_order_id || orderId,
+                  razorpaySignature: response.razorpay_signature || 'rzp_sig_mock',
+                  subscriptionPlanId: selectedPlanId,
                 }),
               },
               targetOrgId || undefined,
             );
-          } catch (err) {
-            console.error('Autopay setup error:', err);
+
+            if (verifyRes?.success || verifyRes?.subscription?.status === 'ACTIVE') {
+              setSuccessMessage('🎉 Payment Successful! Subscription activated. Launching Dashboard...');
+              setTimeout(() => {
+                window.location.replace('/dashboard');
+              }, 1200);
+            } else {
+              setError('Payment verification failed in database. Please try again or contact support.');
+              setSubmitting(false);
+            }
+          } catch (err: any) {
+            console.error('Payment verification error:', err);
+            setError(err.message || 'Payment verification failed. Please try again.');
+            setSubmitting(false);
           }
-          window.location.href = '/dashboard';
         },
         prefill: {
           name: user?.name || 'Gym Owner',
@@ -165,11 +194,11 @@ export default function SubscriptionSetupPage() {
         },
         modal: {
           ondismiss: function () {
+            setError('Payment cancelled or Razorpay checkout window closed. Successful payment is required to access Klyro.');
             setSubmitting(false);
           },
         },
       };
-
 
       const rzp = new (window as any).Razorpay(options);
       rzp.open();
@@ -182,22 +211,38 @@ export default function SubscriptionSetupPage() {
   const handleActivateAutopay = async () => {
     setSubmitting(true);
     setError('');
+    setSuccessMessage('');
+
+    const targetOrgId =
+      activeOrgId ||
+      (typeof window !== 'undefined' ? localStorage.getItem('klyro_active_org_id') : null) ||
+      user?.organizationIds?.[0];
 
     try {
-      await apiRequest(
-        '/subscription/autopay/setup',
+      const verifyRes = await apiRequest<any>(
+        '/subscription/verify-payment',
         {
           method: 'POST',
-          body: JSON.stringify({ method: autopayMethod }),
+          body: JSON.stringify({
+            razorpayPaymentId: `pay_sim_${Date.now()}`,
+            razorpayOrderId: `order_sim_${Date.now()}`,
+            subscriptionPlanId: selectedPlanId,
+          }),
         },
-        activeOrgId || undefined,
+        targetOrgId || undefined,
       );
 
-      // Payment complete redirects to app
-      router.push('/dashboard');
+      if (verifyRes?.success || verifyRes?.subscription?.status === 'ACTIVE') {
+        setSuccessMessage('🎉 Payment Simulated & Verified! Subscription active. Launching Dashboard...');
+        setTimeout(() => {
+          window.location.replace('/dashboard');
+        }, 1200);
+      } else {
+        setError('Payment verification failed. Please try again.');
+        setSubmitting(false);
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to activate AutoPay');
-    } finally {
+      setError(err.message || 'Failed to verify payment');
       setSubmitting(false);
     }
   };
@@ -212,8 +257,37 @@ export default function SubscriptionSetupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#051424] text-[#d4e4fa] flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#051424] text-[#d4e4fa] flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8 relative">
+      {/* Floating Notifications Bar */}
+      <div className="sm:mx-auto sm:w-full sm:max-w-4xl mb-4 space-y-3">
+        {successMessage && (
+          <div className="p-4 rounded-2xl bg-[#4edea3]/15 border border-[#4edea3]/40 text-[#4edea3] text-xs font-bold flex items-center justify-between shadow-xl shadow-emerald-950/40 animate-in slide-in-from-top duration-300">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-[#4edea3] flex-shrink-0 animate-bounce" />
+              <span>{successMessage}</span>
+            </div>
+            <Sparkles className="w-4 h-4 text-[#4edea3] animate-pulse" />
+          </div>
+        )}
+
+        {error && (
+          <div className="p-4 rounded-2xl bg-[#ffb4ab]/15 border border-[#ffb4ab]/40 text-[#ffb4ab] text-xs font-bold flex items-center justify-between shadow-xl shadow-rose-950/40 animate-in slide-in-from-top duration-300">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-[#ffb4ab] flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button
+              onClick={() => setError('')}
+              className="text-[#ffb4ab] hover:opacity-80 p-1"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-8">
+
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#8b5cf6] to-[#d0bcff] flex items-center justify-center text-white mx-auto mb-3 shadow-xl shadow-purple-900/30">
           <Dumbbell className="w-7 h-7 text-[#051424]" />
         </div>
