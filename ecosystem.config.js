@@ -51,7 +51,7 @@ module.exports = {
     {
       name: 'klyro-web',
       script: 'node_modules/next/dist/bin/next',
-      args: 'dev -p 3000',
+      args: 'dev -H 0.0.0.0 -p 3000',
       cwd: './apps/web',
       autorestart: true,
       watch: false,

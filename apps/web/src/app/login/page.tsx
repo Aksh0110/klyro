@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Dumbbell, ArrowRight, PhoneCall, Shield } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
+import { validatePhoneNumber, sanitizePhoneNumber } from '@/lib/phone-validation';
+
 export default function LoginPage() {
   const [phone, setPhone] = useState('+919876543210');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -15,11 +17,19 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    const validation = validatePhoneNumber(phone);
+    if (!validation.isValid) {
+      setError(validation.error || 'Invalid phone number format');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      await sendOtp(phone);
-      router.push(`/verify-otp?phone=${encodeURIComponent(phone)}`);
+      const formattedPhone = sanitizePhoneNumber(phone);
+      await sendOtp(formattedPhone);
+      router.push(`/verify-otp?phone=${encodeURIComponent(formattedPhone)}`);
     } catch (err: any) {
       setError(err.message || 'Failed to send OTP');
     } finally {

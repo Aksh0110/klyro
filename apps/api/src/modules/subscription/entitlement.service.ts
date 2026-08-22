@@ -22,50 +22,54 @@ export class EntitlementService {
 
   async checkEntitlement(organizationId: string): Promise<EntitlementCheckResult> {
     const orgObjectId = new Types.ObjectId(organizationId);
-    let subscription = await this.subscriptionModel.findOne({ organizationId: orgObjectId }).exec();
+    const subscription = await this.subscriptionModel.findOne({ organizationId: orgObjectId }).exec();
 
-    // Auto-provision or activate subscription so organization has active lifetime access
-    if (!subscription || subscription.status !== SUBSCRIPTION_STATUS.ACTIVE) {
-      let growthPlan =
-        (await this.planModel.findOne({ code: 'GROWTH' }).exec()) ||
-        (await this.planModel.findOne({}).exec());
-
-      if (!growthPlan) {
-        growthPlan = await this.planModel.create({
-          name: 'Growth Plan',
-          code: 'GROWTH',
-          monthlyPrice: 1999,
-          yearlyPrice: 19990,
-          currency: 'INR',
-          features: ['Unlimited Members', 'Attendance', 'Billing', 'Communications'],
-          isActive: true,
-        });
-      }
-
-      const now = new Date();
-      const periodEnd = new Date(now);
-      periodEnd.setFullYear(periodEnd.getFullYear() + 10);
-
-      if (!subscription) {
-        subscription = await this.subscriptionModel.create({
-          organizationId: orgObjectId,
-          subscriptionPlanId: growthPlan._id,
-          status: SUBSCRIPTION_STATUS.ACTIVE,
-          startedAt: now,
-          currentPeriodStart: now,
-          currentPeriodEnd: periodEnd,
-          cancelAtPeriodEnd: false,
-          provider: 'DEV_PROVIDER',
-          currency: 'INR',
-          amount: growthPlan.monthlyPrice,
-        });
-      } else {
-        subscription.status = SUBSCRIPTION_STATUS.ACTIVE;
-        subscription.currentPeriodEnd = periodEnd;
-        await subscription.save();
-      }
+    if (!subscription) {
+      return {
+        hasAccess: false,
+        status: SUBSCRIPTION_STATUS.PENDING_PAYMENT,
+        reason: 'No subscription found. Payment or active plan required to access app.',
+      };
     }
 
-    return { hasAccess: true, status: SUBSCRIPTION_STATUS.ACTIVE };
+    const now = new Date();
+
+    // 1. ACTIVE or PENDING_AUTOPAY Subscription
+    if (
+      subscription.status === SUBSCRIPTION_STATUS.ACTIVE ||
+      subscription.status === SUBSCRIPTION_STATUS.PENDING_AUTOPAY
+    ) {
+      if (subscription.currentPeriodEnd && new Date(subscription.currentPeriodEnd) < now) {
+        subscription.status = SUBSCRIPTION_STATUS.PAST_DUE;
+        await subscription.save();
+        return {
+          hasAccess: false,
+          status: SUBSCRIPTION_STATUS.PAST_DUE,
+          reason: 'Subscription period has expired. Payment required to continue.',
+        };
+      }
+      return { hasAccess: true, status: subscription.status };
+    }
+
+    // 2. TRIAL Subscription
+    if (subscription.status === SUBSCRIPTION_STATUS.TRIAL) {
+      if (subscription.trialEndsAt && new Date(subscription.trialEndsAt) < now) {
+        subscription.status = SUBSCRIPTION_STATUS.EXPIRED;
+        await subscription.save();
+        return {
+          hasAccess: false,
+          status: SUBSCRIPTION_STATUS.EXPIRED,
+          reason: 'Free trial has expired. Payment required to continue.',
+        };
+      }
+      return { hasAccess: true, status: SUBSCRIPTION_STATUS.TRIAL };
+    }
+
+    // 3. INACTIVE / PENDING_PAYMENT / EXPIRED / CANCELLED
+    return {
+      hasAccess: false,
+      status: subscription.status,
+      reason: `Subscription is ${subscription.status}. Payment required to access Klyro SaaS platform.`,
+    };
   }
 }

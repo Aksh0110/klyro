@@ -35,19 +35,23 @@ import {
   MandateMethodType,
 } from '@klyro/config';
 
-export const PHONE_REGEX = /^(\+?[0-9]{1,4}[-.\s]?)?[0-9]{10,14}$/;
+export const PHONE_REGEX = /^(\+91[\s-]?)?[6-9]\d{9}$|^(\+\d{1,4}[\s-]?)?\d{7,14}$/;
 
 export class SendOtpDto {
   @IsString()
   @IsNotEmpty({ message: 'Phone number is required' })
-  @Matches(PHONE_REGEX, { message: 'Phone number must be a valid format' })
+  @Matches(PHONE_REGEX, {
+    message: 'Please enter a valid 10-digit mobile number or full country code format (e.g., +919876543210 or 9876543210)',
+  })
   phone!: string;
 }
 
 export class VerifyOtpDto {
   @IsString()
   @IsNotEmpty({ message: 'Phone number is required' })
-  @Matches(PHONE_REGEX, { message: 'Phone number must be a valid format' })
+  @Matches(PHONE_REGEX, {
+    message: 'Please enter a valid 10-digit mobile number or full country code format (e.g., +919876543210 or 9876543210)',
+  })
   phone!: string;
 
   @IsString()
@@ -69,6 +73,7 @@ export class OrganizationContactDto {
 
   @IsOptional()
   @IsString()
+  @Matches(PHONE_REGEX, { message: 'Phone number must be a valid format' })
   phone?: string;
 }
 
@@ -219,6 +224,7 @@ export class EmergencyContactDto {
 
   @IsOptional()
   @IsString()
+  @Matches(PHONE_REGEX, { message: 'Emergency contact phone number must be a valid format' })
   phone?: string;
 
   @IsOptional()
@@ -282,6 +288,7 @@ export class UpdateCustomerDto {
 
   @IsOptional()
   @IsString()
+  @Matches(PHONE_REGEX, { message: 'Phone number must be a valid 10-digit mobile number or include country code' })
   phone?: string;
 
   @IsOptional()

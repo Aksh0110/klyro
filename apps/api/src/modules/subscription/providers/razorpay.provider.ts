@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import {
   PaymentProvider,
@@ -12,12 +13,51 @@ export class RazorpayProvider implements PaymentProvider {
   name = 'RAZORPAY';
   private readonly logger = new Logger(RazorpayProvider.name);
 
+  constructor(private readonly configService: ConfigService) {}
+
+  private get keyId(): string {
+    return this.configService.get<string>('RAZORPAY_KEY_ID') || 'rzp_test_key_id';
+  }
+
+  private get keySecret(): string {
+    return this.configService.get<string>('RAZORPAY_KEY_SECRET') || 'rzp_test_key_secret';
+  }
+
   async createSubscription(planCode: string, amount: number): Promise<CreateSubscriptionResult> {
-    const providerSubscriptionId = `sub_rzp_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-    this.logger.log(`Created Razorpay subscription reference: ${providerSubscriptionId}`);
+    const auth = Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64');
+    let providerSubscriptionId = `order_rzp_${Date.now()}`;
+
+    try {
+      const response = await fetch('https://api.razorpay.com/v1/orders', {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${auth}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: amount * 100,
+          currency: 'INR',
+          receipt: `rcpt_${Date.now()}`,
+          notes: {
+            planCode,
+          },
+        }),
+      });
+
+      const orderData = await response.json();
+      if (orderData?.id) {
+        providerSubscriptionId = orderData.id;
+        this.logger.log(`Created real Razorpay Order successfully: ${providerSubscriptionId}`);
+      } else {
+        this.logger.warn(`Razorpay Order API returned: ${JSON.stringify(orderData)}`);
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to call Razorpay API: ${err.message}`);
+    }
+
     return {
       providerSubscriptionId,
-      checkoutUrl: `https://checkout.razorpay.com/v1/checkout.html?subscription_id=${providerSubscriptionId}`,
+      checkoutUrl: '',
     };
   }
 
@@ -44,10 +84,11 @@ export class RazorpayProvider implements PaymentProvider {
     return true;
   }
 
-  verifyWebhookSignature(body: string, signature: string, secret: string): boolean {
-    if (!signature || !secret) return false;
+  verifyWebhookSignature(body: string, signature: string, secret?: string): boolean {
+    if (!signature) return false;
+    const webhookSecret = secret || this.configService.get<string>('RAZORPAY_WEBHOOK_SECRET') || 'rzp_webhook_secret_key';
     const expectedSignature = crypto
-      .createHmac('sha256', secret)
+      .createHmac('sha256', webhookSecret)
       .update(body)
       .digest('hex');
     return expectedSignature === signature;

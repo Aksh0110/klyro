@@ -44,8 +44,8 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new TransformInterceptor());
 
-  await app.listen(port);
-  logger.log(`Klyro API Gateway running on port ${port} with prefix /api/v1`);
+  await app.listen(port, '0.0.0.0');
+  logger.log(`Klyro API Gateway running on http://0.0.0.0:${port} with prefix /api/v1`);
 }
 
 bootstrap();

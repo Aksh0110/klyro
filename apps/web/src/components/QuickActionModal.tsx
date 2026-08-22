@@ -19,6 +19,8 @@ import {
   Loader2,
 } from 'lucide-react';
 
+import { validatePhoneNumber, sanitizePhoneNumber } from '@/lib/phone-validation';
+
 interface QuickActionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -227,9 +229,9 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
     e.preventDefault();
     if (isSubmitting || !activeOrgId || !firstName || !phone || !selectedPlanId) return;
 
-    const cleanedPhone = phone.replace(/\D/g, '');
-    if (cleanedPhone.length !== 10) {
-      setErrorMessage('Mobile number must be standard 10 digits (e.g. 9876543210)');
+    const validation = validatePhoneNumber(phone);
+    if (!validation.isValid) {
+      setErrorMessage(validation.error || 'Please enter a valid 10-digit mobile number or full format (+919876543210)');
       return;
     }
 
