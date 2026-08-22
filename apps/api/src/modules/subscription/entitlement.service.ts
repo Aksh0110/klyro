@@ -34,11 +34,8 @@ export class EntitlementService {
 
     const now = new Date();
 
-    // 1. ACTIVE or PENDING_AUTOPAY Subscription
-    if (
-      subscription.status === SUBSCRIPTION_STATUS.ACTIVE ||
-      subscription.status === SUBSCRIPTION_STATUS.PENDING_AUTOPAY
-    ) {
+    // 1. ACTIVE Subscription (Requires successful payment)
+    if (subscription.status === SUBSCRIPTION_STATUS.ACTIVE) {
       if (subscription.currentPeriodEnd && new Date(subscription.currentPeriodEnd) < now) {
         subscription.status = SUBSCRIPTION_STATUS.PAST_DUE;
         await subscription.save();
@@ -50,6 +47,7 @@ export class EntitlementService {
       }
       return { hasAccess: true, status: subscription.status };
     }
+
 
     // 2. TRIAL Subscription
     if (subscription.status === SUBSCRIPTION_STATUS.TRIAL) {

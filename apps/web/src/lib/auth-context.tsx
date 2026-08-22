@@ -77,10 +77,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           try {
             const subData = await apiRequest<any>('/subscription/current', {}, checkOrgId);
             const subStatus = subData?.subscription?.status || null;
-            const valid = subStatus === 'ACTIVE' || subStatus === 'TRIAL' || subStatus === 'PENDING_AUTOPAY';
+            const valid = subStatus === 'ACTIVE' || subStatus === 'TRIAL';
 
             setSubscriptionStatus(subStatus);
             setIsSubscriptionValid(valid);
+
 
             if (!valid) {
               if (pathname !== '/setup/subscription') {
@@ -136,10 +137,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const subData = await apiRequest<any>('/subscription/current', {}, primaryOrgId);
         const subStatus = subData?.subscription?.status || null;
-        const valid = subStatus === 'ACTIVE' || subStatus === 'TRIAL' || subStatus === 'PENDING_AUTOPAY';
+        const valid = subStatus === 'ACTIVE' || subStatus === 'TRIAL';
 
         setSubscriptionStatus(subStatus);
         setIsSubscriptionValid(valid);
+
 
         if (valid) {
           const userRole = data.user.roles?.find((r) => r.organizationId === primaryOrgId)?.role || 'MEMBER';
