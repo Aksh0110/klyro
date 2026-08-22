@@ -68,10 +68,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // Route redirection check with strict subscription verification
-        if (userData.organizationIds.length === 0 && pathname !== '/setup') {
+        if (userData.organizationIds.length === 0) {
           setSubscriptionStatus(null);
           setIsSubscriptionValid(false);
-          router.replace('/setup');
+          if (pathname !== '/setup' && pathname !== '/login' && pathname !== '/verify-otp') {
+            router.replace('/setup');
+          }
         } else if (userData.organizationIds.length > 0) {
           const checkOrgId = targetOrg || userData.organizationIds[0];
           try {
@@ -82,9 +84,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setSubscriptionStatus(subStatus);
             setIsSubscriptionValid(valid);
 
-
             if (!valid) {
-              if (pathname !== '/setup/subscription') {
+              if (pathname !== '/setup/subscription' && pathname !== '/setup' && pathname !== '/login' && pathname !== '/verify-otp') {
                 router.replace('/setup/subscription');
               }
             } else if (pathname === '/login' || pathname === '/verify-otp' || pathname === '/setup' || pathname === '/setup/subscription') {
@@ -98,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch {
             setSubscriptionStatus(null);
             setIsSubscriptionValid(false);
-            if (pathname !== '/setup/subscription' && pathname !== '/login' && pathname !== '/verify-otp') {
+            if (pathname !== '/setup/subscription' && pathname !== '/setup' && pathname !== '/login' && pathname !== '/verify-otp') {
               router.replace('/setup/subscription');
             }
           }
@@ -108,6 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } finally {
         setIsLoading(false);
       }
+
     };
 
     initAuth();
