@@ -113,12 +113,16 @@ export class GymWorkflowService {
   async onboardMember(organizationId: string, dto: OnboardMemberDto, recordedByUserId?: string) {
     const orgObjId = new Types.ObjectId(organizationId);
 
-    // Sanitize & validate phone
-    const cleanedPhone = dto.phone ? dto.phone.replace(/\D/g, '') : '';
-    if (cleanedPhone.length !== 10) {
-      throw new BadRequestException('Mobile number must be a standard 10-digit number.');
+    // Sanitize & extract 10-digit mobile number
+    let cleanedPhone = dto.phone ? dto.phone.replace(/\D/g, '') : '';
+    if (cleanedPhone.length > 10 && cleanedPhone.startsWith('91')) {
+      cleanedPhone = cleanedPhone.slice(-10);
+    }
+    if (cleanedPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanedPhone)) {
+      throw new BadRequestException('Mobile number must be a valid 10-digit number starting with 6, 7, 8, or 9.');
     }
     dto.phone = cleanedPhone;
+
 
     // 1. Duplicate check
     const existing = await this.checkDuplicatePhone(organizationId, dto.phone);
