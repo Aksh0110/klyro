@@ -15,7 +15,12 @@ COPY . .
 RUN npm run build --workspace=@klyro/config
 RUN npm run build --workspace=@klyro/types
 RUN npm run build --workspace=@klyro/validation
+
+ARG NEXT_PUBLIC_API_URL=https://klyrobackend.gymbook.ai/api/v1
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 RUN npm run build --workspace=web
+
 
 FROM node:22-alpine AS runner
 

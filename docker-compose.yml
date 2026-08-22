@@ -30,7 +30,7 @@ services:
       JWT_REFRESH_SECRET: super_secret_klyro_jwt_refresh_key_dev_mode_only_987654321
       DEV_OTP_ENABLED: 'true'
       DEFAULT_DEV_OTP: '123456'
-      CORS_ORIGIN: http://88.222.214.99:3001
+      CORS_ORIGIN: https://klyro.gymbook.ai
     depends_on:
       - mongodb
     networks:
@@ -40,13 +40,15 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/web.Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=https://klyrobackend.gymbook.ai/api/v1
     container_name: klyro-web
     restart: always
     ports:
       - '3001:3000'
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: http://88.222.214.99:4000/api/v1
+      NEXT_PUBLIC_API_URL: https://klyrobackend.gymbook.ai/api/v1
     depends_on:
       - api
     networks:
@@ -58,3 +60,4 @@ networks:
 
 volumes:
   mongodb_data:
+
