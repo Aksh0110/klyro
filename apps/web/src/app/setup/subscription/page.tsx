@@ -145,7 +145,11 @@ export default function SubscriptionSetupPage() {
       const plan = plans.find((p) => p._id === selectedPlanId);
       const amountInPaise = (plan?.monthlyPrice || 799) * 100;
       const keyId = res?.keyId || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_TSlH8WnGPPBsO7';
-      const orderId = res?.subscription?.providerSubscriptionId;
+      const orderId =
+        res?.orderId ||
+        res?.payment?.providerOrderId ||
+        res?.subscription?.pendingProviderSubscriptionId ||
+        (res?.isPlanChange ? undefined : res?.subscription?.providerSubscriptionId);
 
       const loaded = await loadRazorpayScript();
       if (!loaded) {
@@ -154,7 +158,13 @@ export default function SubscriptionSetupPage() {
         return;
       }
 
-      const isValidRealOrderId = orderId && orderId.startsWith('order_') && !orderId.includes('order_rzp_');
+      const isValidRealOrderId =
+        orderId &&
+        typeof orderId === 'string' &&
+        orderId.startsWith('order_') &&
+        !orderId.includes('order_rzp_') &&
+        !orderId.includes('sim_') &&
+        !orderId.includes('dev_');
 
       const options = {
         key: keyId,
@@ -321,7 +331,7 @@ export default function SubscriptionSetupPage() {
             ? currentSub?.status === 'TRIAL'
               ? 'Upgrade to Paid Subscription'
               : currentSub?.status === 'ACTIVE'
-              ? 'Change / Upgrade Plan'
+              ? 'Renew / Upgrade Plan'
               : 'Choose Your Klyro Plan'
             : 'Simulated Payment Gateway'}
         </h2>
@@ -330,7 +340,7 @@ export default function SubscriptionSetupPage() {
             ? currentSub?.status === 'TRIAL'
               ? 'Select a subscription plan below to upgrade your gym from Free Trial to full paid access'
               : currentSub?.status === 'ACTIVE'
-              ? 'Select a plan below to change or upgrade your subscription tier'
+              ? 'Select a plan below to renew or upgrade your subscription tier'
               : 'Select a subscription plan or try the 60-day free trial'
             : 'Complete initial payment & AutoPay setup to enter Klyro'}
         </p>

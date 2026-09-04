@@ -151,7 +151,11 @@ function SubscriptionSettingsContent() {
 
       const amountInPaise = (planToBuy.monthlyPrice || 799) * 100;
       const keyId = res?.keyId || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_TSlH8WnGPPBsO7';
-      const orderId = res?.subscription?.providerSubscriptionId;
+      const orderId =
+        res?.orderId ||
+        res?.payment?.providerOrderId ||
+        res?.subscription?.pendingProviderSubscriptionId ||
+        (res?.isPlanChange ? undefined : res?.subscription?.providerSubscriptionId);
 
       const loaded = await loadRazorpayScript();
       if (!loaded) {
@@ -168,7 +172,13 @@ function SubscriptionSettingsContent() {
         return;
       }
 
-      const isValidRealOrderId = orderId && orderId.startsWith('order_') && !orderId.includes('order_rzp_');
+      const isValidRealOrderId =
+        orderId &&
+        typeof orderId === 'string' &&
+        orderId.startsWith('order_') &&
+        !orderId.includes('order_rzp_') &&
+        !orderId.includes('sim_') &&
+        !orderId.includes('dev_');
 
       const options = {
         key: keyId,
@@ -200,7 +210,14 @@ function SubscriptionSettingsContent() {
         },
         modal: {
           ondismiss: async function () {
-            // Revert pending checkout in backend
+            setUpgrading(false);
+            setConfirmModalOpen(false);
+            setPendingTargetPlan(null);
+            setModalToast({
+              type: 'error',
+              message: `Payment incomplete. You remain securely on your existing ${currentPlanName} Plan.`,
+            });
+            // Revert pending checkout in backend in background
             try {
               await apiRequest(
                 '/subscription/cancel-checkout',
@@ -213,17 +230,15 @@ function SubscriptionSettingsContent() {
             } catch {
               // silent
             }
-            setModalToast({
-              type: 'error',
-              message: `Payment incomplete. You remain securely on your existing ${currentPlanName} Plan.`,
-            });
-            setUpgrading(false);
-            setConfirmModalOpen(false);
           },
         },
       };
 
       const rzp = new (window as any).Razorpay(options);
+      // Close confirmation modal and reset loader as payment window is active
+      setConfirmModalOpen(false);
+      setUpgrading(false);
+      setPendingTargetPlan(null);
       rzp.open();
     } catch (err: any) {
       setModalToast({
@@ -232,6 +247,7 @@ function SubscriptionSettingsContent() {
       });
       setUpgrading(false);
       setConfirmModalOpen(false);
+      setPendingTargetPlan(null);
     }
   };
 
@@ -380,7 +396,7 @@ function SubscriptionSettingsContent() {
             className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-1.5 active:scale-95"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Change / Upgrade Plan</span>
+            <span>Renew / Upgrade Plan</span>
           </button>
         </div>
 
@@ -587,26 +603,26 @@ function SubscriptionSettingsContent() {
           )}
         </div>
 
-        {/* Interactive Change / Upgrade Plan Modal */}
+        {/* Interactive Renew / Upgrade Plan Modal */}
         {showUpgradeModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="relative w-full max-w-4xl bg-card border border-border rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-2xl space-y-4 sm:space-y-6 max-h-[92vh] overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="relative w-full max-w-4xl bg-card border border-border rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
               {/* Modal Header */}
-              <div className="flex items-start sm:items-center justify-between gap-3 border-b border-border pb-3 sm:pb-4">
+              <div className="flex items-center justify-between gap-3 border-b border-border pb-2.5 sm:pb-4 shrink-0">
                 <div>
-                  <h3 className="text-lg sm:text-xl font-bold tracking-tight text-foreground flex items-center gap-2 flex-wrap">
-                    <span>Change or Upgrade Plan</span>
-                    <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] sm:text-[11px] font-mono">Instant Upgrade</span>
+                  <h3 className="text-base sm:text-lg font-bold tracking-tight text-foreground flex items-center gap-2 flex-wrap">
+                    <span>Renew / Upgrade Plan</span>
+                    <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-mono">Renew / Upgrade</span>
                   </h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Select your preferred tier and complete payment to activate it immediately
+                  <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
+                    Select a tier to renew or upgrade with safe fallback
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setShowUpgradeModal(false)}
-                  className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-all shrink-0"
+                  className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-all shrink-0"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -615,7 +631,7 @@ function SubscriptionSettingsContent() {
               {/* In-Modal Alert / Toast */}
               {modalToast && (
                 <div
-                  className={`p-3.5 rounded-xl border flex items-center gap-2.5 text-xs font-bold animate-in slide-in-from-top-2 duration-200 ${
+                  className={`mt-2.5 p-2.5 sm:p-3 rounded-xl border flex items-center gap-2 text-xs font-bold shrink-0 ${
                     modalToast.type === 'success'
                       ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
                       : 'bg-rose-500/15 border-rose-500/40 text-rose-300'
@@ -630,8 +646,8 @@ function SubscriptionSettingsContent() {
                 </div>
               )}
 
-              {/* Plans Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Plans Grid - Compact & Responsive */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-4 overflow-y-auto py-3">
                 {plans.map((p) => {
                   const isSelected = selectedPlanId === p._id;
                   const isPopular = p.code === 'GROWTH';
@@ -646,22 +662,22 @@ function SubscriptionSettingsContent() {
                     <div
                       key={p._id}
                       onClick={() => setSelectedPlanId(p._id)}
-                      className={`p-5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between relative ${
+                      className={`p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border cursor-pointer transition-all flex flex-col justify-between relative ${
                         isSelected
-                          ? 'border-primary bg-secondary/60 ring-2 ring-primary/40 shadow-lg'
+                          ? 'border-primary bg-secondary/60 ring-2 ring-primary/40 shadow-md'
                           : 'border-border bg-card/60 hover:bg-card'
                       }`}
                     >
                       {isPopular && (
-                        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-primary text-primary-foreground font-extrabold text-[9px] uppercase tracking-wider shadow">
+                        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-primary text-primary-foreground font-extrabold text-[9px] uppercase tracking-wider shadow">
                           Most Popular
                         </span>
                       )}
 
                       <div>
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center justify-between mb-1.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <h4 className="font-extrabold text-sm text-foreground">{p.name}</h4>
+                            <h4 className="font-extrabold text-sm sm:text-base text-foreground">{p.name}</h4>
                             {isCurrentActive && (
                               <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                                 Active
@@ -675,30 +691,26 @@ function SubscriptionSettingsContent() {
                           </div>
                           {isSelected && (
                             <div className="w-4 h-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
-                              <Check className="w-3 h-3" />
+                              <Check className="w-2.5 h-2.5" />
                             </div>
                           )}
                         </div>
 
-                        <div className="mb-2">
-                          <span className="text-2xl font-black text-foreground">₹{p.monthlyPrice}</span>
-                          <span className="text-muted-foreground text-[11px]"> / month</span>
+                        <div className="flex items-baseline gap-1 mb-1">
+                          <span className="text-xl sm:text-2xl font-black text-foreground">₹{p.monthlyPrice}</span>
+                          <span className="text-muted-foreground text-[10px] sm:text-[11px]"> / month</span>
                         </div>
 
-                        <p className="text-[11px] text-muted-foreground mb-4 min-h-[28px]">{p.description}</p>
+                        <p className="text-[10px] sm:text-[11px] text-muted-foreground mb-2.5 line-clamp-1 sm:line-clamp-2">{p.description}</p>
 
-                        <div className="space-y-2 text-[11px] border-t border-border pt-3 mb-4">
-                          <div className="flex items-center gap-2 text-foreground font-medium">
-                            <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <div className="space-y-1 sm:space-y-1.5 text-[10px] sm:text-[11px] border-t border-border/70 pt-2 mb-3">
+                          <div className="flex items-center gap-1.5 text-foreground font-medium">
+                            <Check className="w-3 h-3 text-emerald-500 shrink-0" />
                             <span>Up to {p.memberLimit} members</span>
                           </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                            <span>Attendance check-in & reports</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                            <span>WhatsApp & automated billing</span>
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                            <span>Attendance & automated billing</span>
                           </div>
                         </div>
                       </div>
@@ -710,14 +722,14 @@ function SubscriptionSettingsContent() {
                           handleSelectPlanToUpgrade(p);
                         }}
                         disabled={upgrading}
-                        className={`w-full py-2 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 ${
+                        className={`w-full py-1.5 sm:py-2 px-3 rounded-lg sm:rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 ${
                           isSelected
                             ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow'
                             : 'bg-secondary hover:bg-secondary/80 text-foreground border border-border'
                         }`}
                       >
                         {upgrading && selectedPlanId === p._id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <>
                             <span>
@@ -737,18 +749,18 @@ function SubscriptionSettingsContent() {
               </div>
 
               {/* Modal Footer */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-border text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-primary" />
-                  <span>256-bit SSL secured payments via Razorpay</span>
+              <div className="flex flex-row items-center justify-between gap-2 pt-2 border-t border-border text-[11px] text-muted-foreground shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-primary shrink-0" />
+                  <span className="truncate">256-bit SSL secured</span>
                 </div>
 
                 <Link
                   href="/settings/subscription/plans"
                   onClick={() => setShowUpgradeModal(false)}
-                  className="text-primary hover:underline font-semibold"
+                  className="text-primary hover:underline font-semibold shrink-0 text-[11px]"
                 >
-                  View full-screen plans comparison page →
+                  All Plans Page →
                 </Link>
               </div>
             </div>
@@ -759,7 +771,9 @@ function SubscriptionSettingsContent() {
         <PlanChangeConfirmModal
           isOpen={confirmModalOpen}
           onClose={() => {
-            if (!upgrading) setConfirmModalOpen(false);
+            setConfirmModalOpen(false);
+            setUpgrading(false);
+            setPendingTargetPlan(null);
           }}
           onConfirm={() => {
             if (pendingTargetPlan) {

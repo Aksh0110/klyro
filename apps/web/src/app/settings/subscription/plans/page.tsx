@@ -157,7 +157,11 @@ export default function SubscriptionPlansPage() {
 
       const amountInPaise = (targetPlan.monthlyPrice || 799) * 100;
       const keyId = res?.keyId || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_TSlH8WnGPPBsO7';
-      const orderId = res?.subscription?.providerSubscriptionId;
+      const orderId =
+        res?.orderId ||
+        res?.payment?.providerOrderId ||
+        res?.subscription?.pendingProviderSubscriptionId ||
+        (res?.isPlanChange ? undefined : res?.subscription?.providerSubscriptionId);
 
       const loaded = await loadRazorpayScript();
       if (!loaded) {
@@ -175,7 +179,13 @@ export default function SubscriptionPlansPage() {
         return;
       }
 
-      const isValidRealOrderId = orderId && orderId.startsWith('order_') && !orderId.includes('order_rzp_');
+      const isValidRealOrderId =
+        orderId &&
+        typeof orderId === 'string' &&
+        orderId.startsWith('order_') &&
+        !orderId.includes('order_rzp_') &&
+        !orderId.includes('sim_') &&
+        !orderId.includes('dev_');
 
       const options = {
         key: keyId,
@@ -207,7 +217,15 @@ export default function SubscriptionPlansPage() {
         },
         modal: {
           ondismiss: async function () {
-            // Revert/cleanup pending change via cancel-checkout endpoint
+            setSubmitting(false);
+            setConfirmModalOpen(false);
+            setPendingTargetPlan(null);
+            showToast(
+              'error',
+              'Payment Incomplete — Existing Plan Preserved',
+              `Payment was not completed. You remain on your existing ${currentPlanName} Plan with zero interruption.`,
+            );
+            // Revert/cleanup pending change via cancel-checkout endpoint in background
             try {
               await apiRequest(
                 '/subscription/cancel-checkout',
@@ -220,23 +238,21 @@ export default function SubscriptionPlansPage() {
             } catch {
               // silent
             }
-            showToast(
-              'error',
-              'Payment Incomplete — Existing Plan Preserved',
-              `Payment was not completed. You remain on your existing ${currentPlanName} Plan with zero interruption.`,
-            );
-            setSubmitting(false);
-            setConfirmModalOpen(false);
           },
         },
       };
 
       const rzp = new (window as any).Razorpay(options);
+      // Close confirmation modal and unblock UI as Razorpay window is active
+      setConfirmModalOpen(false);
+      setSubmitting(false);
+      setPendingTargetPlan(null);
       rzp.open();
     } catch (err: any) {
       showToast('error', 'Checkout Error', err.message || 'Failed to initiate checkout. Please try again.');
       setSubmitting(false);
       setConfirmModalOpen(false);
+      setPendingTargetPlan(null);
     }
   };
 
@@ -405,7 +421,7 @@ export default function SubscriptionPlansPage() {
         ) : null}
 
         {/* Subscription Plans Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-5 pt-1">
           {plans.map((plan) => {
             const isSelected = selectedPlanId === plan._id;
             const isPopular = plan.code === 'GROWTH';
@@ -420,21 +436,21 @@ export default function SubscriptionPlansPage() {
               <div
                 key={plan._id}
                 onClick={() => setSelectedPlanId(plan._id)}
-                className={`p-6 rounded-2xl border cursor-pointer transition-all relative flex flex-col justify-between ${
+                className={`p-4 sm:p-6 rounded-2xl border cursor-pointer transition-all relative flex flex-col justify-between ${
                   isSelected
                     ? 'border-primary bg-card ring-2 ring-primary/40 shadow-xl'
                     : 'border-border bg-card/60 hover:border-border/80 hover:bg-card'
                 }`}
               >
                 {isPopular && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-primary text-primary-foreground font-extrabold text-[10px] uppercase tracking-wider shadow">
+                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-primary text-primary-foreground font-extrabold text-[9px] uppercase tracking-wider shadow">
                     Most Popular
                   </span>
                 )}
 
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center justify-between mb-2 sm:mb-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <h3 className="font-extrabold text-base text-foreground">{plan.name}</h3>
                       {isCurrentActive && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
@@ -454,17 +470,17 @@ export default function SubscriptionPlansPage() {
                     )}
                   </div>
 
-                  <div className="mb-3">
-                    <span className="text-3xl font-extrabold text-foreground">₹{plan.monthlyPrice}</span>
+                  <div className="mb-2">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-foreground">₹{plan.monthlyPrice}</span>
                     <span className="text-muted-foreground text-xs font-medium"> / month</span>
                   </div>
 
-                  <p className="text-xs text-muted-foreground mb-5 min-h-[32px]">{plan.description}</p>
+                  <p className="text-xs text-muted-foreground mb-3 sm:mb-5 min-h-0 sm:min-h-[32px] line-clamp-2 sm:line-clamp-none">{plan.description}</p>
 
-                  <div className="space-y-2.5 text-xs mb-6 border-t border-border pt-4">
+                  <div className="space-y-1.5 sm:space-y-2.5 text-xs mb-4 sm:mb-6 border-t border-border pt-3 sm:pt-4">
                     <div className="flex items-center gap-2 text-foreground font-semibold">
                       <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span>Up to {plan.memberLimit} active gym members</span>
+                      <span>Up to {plan.memberLimit} active members</span>
                     </div>
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Check className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -531,7 +547,9 @@ export default function SubscriptionPlansPage() {
         <PlanChangeConfirmModal
           isOpen={confirmModalOpen}
           onClose={() => {
-            if (!submitting) setConfirmModalOpen(false);
+            setConfirmModalOpen(false);
+            setSubmitting(false);
+            setPendingTargetPlan(null);
           }}
           onConfirm={() => {
             if (pendingTargetPlan) {
