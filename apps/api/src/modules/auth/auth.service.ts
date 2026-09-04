@@ -103,6 +103,25 @@ export class AuthService {
     };
   }
 
+  async updateProfile(userId: string, name?: string, email?: string) {
+    const user = await this.usersService.updateUserProfile(userId, name, email);
+    return {
+      _id: user._id.toString(),
+      phone: user.phone,
+      name: user.name,
+      email: user.email,
+      status: user.status,
+      organizationIds: user.organizationIds.map((id) => id.toString()),
+      roles: user.roles.map((r) => ({
+        organizationId: r.organizationId.toString(),
+        role: r.role,
+      })),
+      lastLoginAt: user.lastLoginAt,
+      createdAt: (user as any).createdAt,
+      updatedAt: (user as any).updatedAt,
+    };
+  }
+
   private generateTokens(payload: JwtPayload): AuthTokens {
     const accessSecret =
       this.configService.get<string>('JWT_SECRET') || 'super_secret_klyro_jwt_key_dev_mode_only_123456789';

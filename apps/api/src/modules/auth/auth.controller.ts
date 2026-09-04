@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { SendOtpDto, VerifyOtpDto, RefreshTokenDto } from '@klyro/validation';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -37,5 +37,14 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async getMe(@GetCurrentUser('userId') userId: string) {
     return this.authService.getMe(userId);
+  }
+
+  @Patch('profile')
+  @UseGuards(JwtAuthGuard)
+  async updateProfile(
+    @GetCurrentUser('userId') userId: string,
+    @Body() dto: { name?: string; email?: string },
+  ) {
+    return this.authService.updateProfile(userId, dto.name, dto.email);
   }
 }

@@ -17,6 +17,7 @@ interface AuthContextType {
   createOrganization: (name: string, vertical: VerticalType, ownerName?: string, ownerEmail?: string) => Promise<any>;
   setActiveOrgId: (orgId: string) => void;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -85,10 +86,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setIsSubscriptionValid(valid);
 
             if (!valid) {
-              if (pathname !== '/setup/subscription' && pathname !== '/setup' && pathname !== '/login' && pathname !== '/verify-otp') {
-                router.replace('/setup/subscription');
+              if (
+                pathname !== '/settings/subscription/plans' &&
+                pathname !== '/settings/subscription' &&
+                pathname !== '/setup/subscription' &&
+                pathname !== '/setup' &&
+                pathname !== '/login' &&
+                pathname !== '/verify-otp'
+              ) {
+                router.replace('/settings/subscription/plans');
               }
-            } else if (pathname === '/login' || pathname === '/verify-otp' || pathname === '/setup' || pathname === '/setup/subscription') {
+            } else if (pathname === '/login' || pathname === '/verify-otp' || pathname === '/setup') {
               const userRole = userData.roles?.find((r) => r.organizationId === checkOrgId)?.role || 'MEMBER';
               if (userRole === 'MEMBER') {
                 router.replace('/member');
@@ -99,8 +107,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch {
             setSubscriptionStatus(null);
             setIsSubscriptionValid(false);
-            if (pathname !== '/setup/subscription' && pathname !== '/setup' && pathname !== '/login' && pathname !== '/verify-otp') {
-              router.replace('/setup/subscription');
+            if (
+              pathname !== '/settings/subscription/plans' &&
+              pathname !== '/settings/subscription' &&
+              pathname !== '/setup/subscription' &&
+              pathname !== '/setup' &&
+              pathname !== '/login' &&
+              pathname !== '/verify-otp'
+            ) {
+              router.replace('/settings/subscription/plans');
             }
           }
         }
@@ -197,6 +212,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     router.push('/login');
   };
 
+  const refreshUser = async () => {
+    try {
+      const userData = await apiRequest<IUser>('/auth/me');
+      setUser(userData);
+    } catch (e) {
+      console.error('Failed to refresh user', e);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -210,6 +234,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         createOrganization,
         setActiveOrgId,
         logout,
+        refreshUser,
       }}
     >
       {children}

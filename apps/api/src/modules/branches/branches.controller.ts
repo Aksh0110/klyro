@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { CreateBranchDto, UpdateBranchDto } from '@klyro/validation';
 import { PERMISSIONS } from '@klyro/config';
 import { BranchesService } from './branches.service';
@@ -58,5 +58,14 @@ export class BranchesController {
     @Body() dto: UpdateBranchDto,
   ) {
     return this.branchesService.updateBranch(id, tenantContext.organizationId, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermissions(PERMISSIONS.BRANCH_UPDATE)
+  async deleteBranch(
+    @GetTenantContext() tenantContext: TenantContext,
+    @Param('id') id: string,
+  ) {
+    return this.branchesService.deleteBranch(id, tenantContext.organizationId);
   }
 }

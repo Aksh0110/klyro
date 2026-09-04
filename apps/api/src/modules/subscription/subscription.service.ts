@@ -278,7 +278,14 @@ export class SubscriptionService {
     const periodEnd = new Date(now);
     periodEnd.setDate(periodEnd.getDate() + 30);
 
-    // Explicitly update Subscription status to ACTIVE in MongoDB
+    // Explicitly update Subscription plan and status to ACTIVE in MongoDB
+    if (dto.subscriptionPlanId && Types.ObjectId.isValid(dto.subscriptionPlanId)) {
+      subscription.subscriptionPlanId = new Types.ObjectId(dto.subscriptionPlanId) as any;
+      const newPlan = await this.planModel.findById(dto.subscriptionPlanId).exec();
+      if (newPlan) {
+        subscription.amount = newPlan.monthlyPrice;
+      }
+    }
     subscription.status = SUBSCRIPTION_STATUS.ACTIVE;
     subscription.startedAt = subscription.startedAt || now;
     subscription.currentPeriodStart = now;
