@@ -25,9 +25,15 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   // Hard subscription gate: If user is logged in but subscription is invalid, block rendering children!
   if (user && user.organizationIds.length > 0 && !isSubscriptionValid) {
-    if (pathname !== '/setup/subscription' && pathname !== '/setup' && pathname !== '/login') {
+    if (
+      pathname !== '/settings/subscription/plans' &&
+      pathname !== '/settings/subscription' &&
+      pathname !== '/setup/subscription' &&
+      pathname !== '/setup' &&
+      pathname !== '/login'
+    ) {
       if (typeof window !== 'undefined') {
-        window.location.replace('/setup/subscription');
+        window.location.replace('/settings/subscription/plans');
       }
       return (
         <div className="min-h-screen bg-[#051424] flex flex-col items-center justify-center p-4 text-[#d4e4fa]">
@@ -47,9 +53,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       <Sidebar />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">
+      <div className="flex-1 flex flex-col min-w-0 pb-24 md:pb-0">
         <TopHeader />
-        <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto">{children}</main>
+        <main className="flex-1 p-3.5 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">{children}</main>
       </div>
 
       {/* Mobile Bottom Navigation */}

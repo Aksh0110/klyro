@@ -65,10 +65,12 @@ export async function apiRequest<T>(
     if (
       (errorCode === 'SUBSCRIPTION_ENTITLEMENT_REQUIRED' || response.status === 402 || response.status === 403) &&
       typeof window !== 'undefined' &&
+      window.location.pathname !== '/settings/subscription/plans' &&
+      window.location.pathname !== '/settings/subscription' &&
       window.location.pathname !== '/setup/subscription' &&
       window.location.pathname !== '/login'
     ) {
-      window.location.replace('/setup/subscription');
+      window.location.replace('/settings/subscription/plans');
     }
 
 

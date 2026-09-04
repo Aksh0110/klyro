@@ -37,6 +37,8 @@ export default function SubscriptionSetupPage() {
       setStep('PLAN');
     } else if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back();
+    } else if (activeOrgId) {
+      router.push('/settings/subscription');
     } else {
       logout();
       router.push('/login');
@@ -54,18 +56,15 @@ export default function SubscriptionSetupPage() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  const [currentSub, setCurrentSub] = useState<any>(null);
+
   useEffect(() => {
-    fetchPlans();
-    if (activeOrgId) {
-      apiRequest<any>('/subscription/current', {}, activeOrgId)
-        .then((res) => {
-          if (res?.subscription?.status === 'ACTIVE' || res?.subscription?.status === 'TRIAL') {
-            router.push('/dashboard');
-          }
-        })
-        .catch(() => null);
+    if (activeOrgId && user) {
+      router.replace('/settings/subscription/plans');
+      return;
     }
-  }, [activeOrgId]);
+    fetchPlans();
+  }, [activeOrgId, user]);
 
   const fetchPlans = async () => {
     try {
@@ -318,11 +317,21 @@ export default function SubscriptionSetupPage() {
           <Dumbbell className="w-7 h-7 text-[#051424]" />
         </div>
         <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#d4e4fa]">
-          {step === 'PLAN' ? 'Choose Your Klyro Plan' : 'Simulated Payment Gateway'}
+          {step === 'PLAN'
+            ? currentSub?.status === 'TRIAL'
+              ? 'Upgrade to Paid Subscription'
+              : currentSub?.status === 'ACTIVE'
+              ? 'Change / Upgrade Plan'
+              : 'Choose Your Klyro Plan'
+            : 'Simulated Payment Gateway'}
         </h2>
         <p className="mt-2 text-xs md:text-sm text-[#958ea0]">
           {step === 'PLAN'
-            ? 'Select a subscription plan or try the 60-day free trial'
+            ? currentSub?.status === 'TRIAL'
+              ? 'Select a subscription plan below to upgrade your gym from Free Trial to full paid access'
+              : currentSub?.status === 'ACTIVE'
+              ? 'Select a plan below to change or upgrade your subscription tier'
+              : 'Select a subscription plan or try the 60-day free trial'
             : 'Complete initial payment & AutoPay setup to enter Klyro'}
         </p>
       </div>
@@ -351,6 +360,9 @@ export default function SubscriptionSetupPage() {
                 {plans.map((plan) => {
                   const isSelected = selectedPlanId === plan._id;
                   const isPopular = plan.code === 'GROWTH';
+                  const isCurrentPlan =
+                    currentSub?.subscriptionPlanId?._id === plan._id ||
+                    currentSub?.subscriptionPlanId === plan._id;
 
                   return (
                     <div
@@ -370,7 +382,14 @@ export default function SubscriptionSetupPage() {
 
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-bold text-base text-[#d4e4fa]">{plan.name}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-base text-[#d4e4fa]">{plan.name}</h3>
+                            {isCurrentPlan && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                {currentSub?.status === 'TRIAL' ? 'Trial Tier' : 'Active'}
+                              </span>
+                            )}
+                          </div>
                           {isSelected && (
                             <div className="w-5 h-5 rounded-full bg-[#d0bcff] text-[#3c0091] flex items-center justify-center">
                               <Check className="w-3.5 h-3.5" />
@@ -419,7 +438,13 @@ export default function SubscriptionSetupPage() {
                           <Loader2 className="w-4 h-4 animate-spin text-[#3c0091]" />
                         ) : (
                           <>
-                            <span>Proceed to Payment</span>
+                            <span>
+                              {isCurrentPlan && currentSub?.status === 'ACTIVE'
+                                ? 'Renew / Extend Plan'
+                                : currentSub?.status === 'TRIAL'
+                                ? 'Upgrade to this Plan'
+                                : 'Proceed to Payment'}
+                            </span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </>
                         )}
@@ -475,20 +500,32 @@ export default function SubscriptionSetupPage() {
                   </span>
                 </div>
 
-                <button
-                  onClick={handleStartFreeTrial}
-                  disabled={trialActivating}
-                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#8b5cf6] hover:bg-[#8b5cf6]/90 text-white font-extrabold text-xs transition-all shadow-lg shadow-purple-900/40 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
-                >
-                  {trialActivating ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  ) : (
-                    <>
-                      <span>Start Free Trial & Open App</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+                {currentSub?.status === 'TRIAL' ? (
+                  <div className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#8b5cf6]/20 border border-[#8b5cf6]/40 text-[#d0bcff] font-extrabold text-xs flex items-center justify-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#d0bcff]" />
+                    <span>Free Trial Currently Active</span>
+                  </div>
+                ) : currentSub?.status === 'ACTIVE' ? (
+                  <div className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#4edea3]/20 border border-[#4edea3]/40 text-[#4edea3] font-extrabold text-xs flex items-center justify-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#4edea3]" />
+                    <span>Paid Subscription Active</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleStartFreeTrial}
+                    disabled={trialActivating}
+                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#8b5cf6] hover:bg-[#8b5cf6]/90 text-white font-extrabold text-xs transition-all shadow-lg shadow-purple-900/40 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                  >
+                    {trialActivating ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    ) : (
+                      <>
+                        <span>Start Free Trial & Open App</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>

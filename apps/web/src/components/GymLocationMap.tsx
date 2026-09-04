@@ -35,13 +35,13 @@ export const GymLocationMap: React.FC<GymLocationMapProps> = ({
 
   if (!hasValidCoords) {
     return (
-      <div className={`w-full h-56 rounded-2xl bg-secondary/40 border border-dashed border-border flex flex-col items-center justify-center p-6 text-center space-y-2 ${className}`}>
-        <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-          <Dumbbell className="w-6 h-6" />
+      <div className={`w-full h-36 rounded-2xl bg-secondary/30 border border-dashed border-border flex flex-col items-center justify-center p-4 text-center space-y-1.5 ${className}`}>
+        <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+          <Dumbbell className="w-4 h-4" />
         </div>
-        <h4 className="text-sm font-bold text-foreground">No Location Set</h4>
-        <p className="text-xs text-muted-foreground max-w-xs">
-          Click &ldquo;Use My Current GPS&rdquo; above to set your gym location.
+        <h4 className="text-xs font-bold text-foreground">No Location Configured</h4>
+        <p className="text-[11px] text-muted-foreground max-w-xs">
+          Click &ldquo;Detect Gym Location&rdquo; above to automatically save your gym coordinates.
         </p>
       </div>
     );
@@ -65,7 +65,7 @@ export const GymLocationMap: React.FC<GymLocationMapProps> = ({
         </div>
 
         <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-          {radiusMeters}m Check-In Area
+          Active Check-In Area
         </span>
       </div>
 
@@ -132,7 +132,7 @@ export const GymLocationMap: React.FC<GymLocationMapProps> = ({
       <div className="bg-secondary/40 px-4 py-2.5 border-t border-border flex items-center justify-center text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5 text-center font-medium">
           <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-          Members can self check-in when they are within {radiusMeters} meters of this gym location
+          Members can self check-in when physically present at this gym location
         </span>
       </div>
     </div>
