@@ -48,6 +48,9 @@ export class CommunicationsController {
     @TenantContextDecorator() tenant: TenantContext,
     @Body() dto: CreateAnnouncementDto,
   ) {
+    if (!dto.branchId && tenant.branchId) {
+      dto.branchId = tenant.branchId;
+    }
     return this.announcementsService.createAnnouncement(user, tenant.organizationId, dto);
   }
 
@@ -57,7 +60,7 @@ export class CommunicationsController {
     @TenantContextDecorator() tenant: TenantContext,
     @Query('branchId') branchId?: string,
   ) {
-    return this.announcementsService.getAnnouncements(tenant.organizationId, branchId);
+    return this.announcementsService.getAnnouncements(tenant.organizationId, branchId || tenant.branchId);
   }
 
   @Get('announcements/:id')
@@ -175,7 +178,7 @@ export class CommunicationsController {
     @TenantContextDecorator() tenant: TenantContext,
     @Query('branchId') branchId?: string,
   ) {
-    return this.retentionInsightService.getRetentionSummary(tenant.organizationId, branchId);
+    return this.retentionInsightService.getRetentionSummary(tenant.organizationId, branchId || tenant.branchId);
   }
 
   @Post('communications/run-triggers')

@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LogOut, Dumbbell, ShieldCheck, Bell, Search, Plus, User, Download, Smartphone, X, Sparkles, Share } from 'lucide-react';
+import { LogOut, Dumbbell, ShieldCheck, Bell, Search, Plus, User, Download, Smartphone, X, Sparkles, Share, Building2, ChevronDown, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { apiRequest } from '@/lib/api';
 import { ICustomer } from '@klyro/types';
@@ -11,10 +11,14 @@ import { QuickActionModal } from '../QuickActionModal';
 
 export const TopHeader: React.FC = () => {
   const router = useRouter();
-  const { user, activeOrgId, logout } = useAuth();
+  const { user, activeOrgId, branches, activeBranchId, activeBranch, setActiveBranchId, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [canInstallPwa, setCanInstallPwa] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
+
+  // Branch Switcher State
+  const [showBranchDropdown, setShowBranchDropdown] = useState(false);
+  const branchDropdownRef = useRef<HTMLDivElement>(null);
 
   // Global Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -131,6 +135,9 @@ export const TopHeader: React.FC = () => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowSearchDropdown(false);
       }
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as Node)) {
+        setShowBranchDropdown(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -146,16 +153,16 @@ export const TopHeader: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-30 w-full bg-card/80 backdrop-blur-md border-b border-border px-4 py-2.5 pt-[calc(0.625rem+env(safe-area-inset-top,0px))] flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-30 w-full bg-card/80 backdrop-blur-md border-b border-border px-2.5 sm:px-4 py-2 sm:py-2.5 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] flex items-center justify-between gap-2 sm:gap-3">
 
         {/* Mobile Brand / Tenant Badge */}
-        <div className="flex items-center gap-3">
-          <div className="md:hidden w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white">
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="md:hidden w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shrink-0">
             <Dumbbell className="w-4 h-4" />
           </div>
           <div className="hidden sm:block">
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tenant Context</span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs font-bold text-foreground">
                 {activeOrgId ? `Org ID: ${activeOrgId.slice(-6).toUpperCase()}` : 'Default Tenant'}
               </span>
@@ -163,25 +170,31 @@ export const TopHeader: React.FC = () => {
                 <ShieldCheck className="w-3 h-3" />
                 {userRole}
               </span>
+              {activeBranch && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-secondary text-foreground border border-border">
+                  <Building2 className="w-2.5 h-2.5 text-primary" />
+                  <span>{activeBranch.name}</span>
+                </span>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Global Instant Search (Center) */}
+        {/* Global Instant Search (Center) - Expanded & Roomy */}
         {isManagerOrOwner && (
-          <div ref={searchRef} className="relative flex-1 max-w-md mx-auto">
+          <div ref={searchRef} className="relative flex-1 min-w-[120px] max-w-lg mx-1 sm:mx-auto">
             <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <input
                 type="text"
-                placeholder="Search member by Name, Phone, Code... (Press Enter)"
+                placeholder="Search member by Name, Phone, Code..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
                 onFocus={() => {
                   if (searchResults.length > 0) setShowSearchDropdown(true);
                 }}
-                className="w-full bg-secondary/60 border border-border rounded-xl pl-9 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-all"
+                className="w-full bg-secondary/60 border border-border rounded-xl pl-8 sm:pl-9 pr-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-all"
               />
             </div>
 
@@ -219,17 +232,88 @@ export const TopHeader: React.FC = () => {
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2.5">
+        {/* Action Buttons (Right) */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Active Branch Selector (Icon on mobile, name on desktop) */}
+          {isManagerOrOwner && branches.length > 0 && (
+            <div ref={branchDropdownRef} className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowBranchDropdown((prev) => !prev)}
+                className="flex items-center justify-center p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-secondary/80 hover:bg-secondary border border-border text-foreground transition-all active:scale-95 group text-xs font-semibold shrink-0"
+                title={`Active Branch: ${activeBranch?.name || 'Select Branch'}`}
+              >
+                <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="hidden md:inline max-w-[120px] truncate ml-1 text-xs">
+                  {activeBranch ? activeBranch.name : 'Branch'}
+                </span>
+                {branches.length > 1 && (
+                  <ChevronDown className="hidden md:inline w-3 h-3 text-muted-foreground group-hover:text-foreground transition-transform shrink-0 ml-1" />
+                )}
+              </button>
+
+              {showBranchDropdown && (
+                <div className="absolute top-full right-0 mt-1.5 w-60 bg-card border border-border rounded-xl shadow-2xl overflow-hidden divide-y divide-border z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="p-2.5 bg-secondary/30 flex items-center justify-between text-[11px] font-semibold text-muted-foreground">
+                    <span>Active Gym Branch</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
+                      {branches.length} {branches.length === 1 ? 'branch' : 'branches'}
+                    </span>
+                  </div>
+                  <div className="py-1 max-h-56 overflow-y-auto divide-y divide-border/30">
+                    {branches.map((b) => {
+                      const isSelected = b._id === activeBranchId;
+                      return (
+                        <button
+                          key={b._id}
+                          type="button"
+                          onClick={() => {
+                            setActiveBranchId(b._id);
+                            setShowBranchDropdown(false);
+                          }}
+                          className={`w-full px-3 py-2 text-left flex items-center justify-between text-xs hover:bg-secondary/60 transition-colors ${
+                            isSelected ? 'bg-primary/10 text-primary font-bold' : 'text-foreground'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate pr-2">
+                            <Building2 className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                            <span className="truncate">{b.name}</span>
+                          </div>
+                          {isSelected && (
+                            <div className="flex items-center gap-1 shrink-0 ml-1.5">
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-primary/20 text-primary uppercase">
+                                Active
+                              </span>
+                              <Check className="w-3.5 h-3.5 text-primary shrink-0" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="p-1.5 bg-secondary/20">
+                    <Link
+                      href="/settings?tab=branches"
+                      onClick={() => setShowBranchDropdown(false)}
+                      className="w-full px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 rounded-lg hover:bg-secondary/80 transition-colors"
+                    >
+                      Manage Branches
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Mobile PWA Install Shortcut Button */}
           {canInstallPwa && (
             <button
               onClick={handleHeaderInstallClick}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-purple-600/20 border border-purple-500/30 text-purple-300 hover:bg-purple-600/30 font-bold text-xs transition-all active:scale-95 shrink-0"
-              title="Install Klyro App Shortcut to Home Screen"
+              className="flex items-center justify-center p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-purple-600/20 border border-purple-500/30 text-purple-300 hover:bg-purple-600/30 font-bold text-xs transition-all active:scale-95 shrink-0"
+              title="Install Klyro App"
             >
               <Download className="w-3.5 h-3.5 text-purple-300" />
-              <span className="text-[11px] font-extrabold">Install App</span>
+              <span className="hidden md:inline text-[11px] font-extrabold ml-1">Install App</span>
             </button>
           )}
 
@@ -240,22 +324,22 @@ export const TopHeader: React.FC = () => {
                 setQuickActionTab('onboard');
                 setShowQuickAction(true);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all shadow-md shadow-primary/20 active:scale-95"
+              className="flex items-center justify-center p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all shadow-md shadow-primary/20 active:scale-95 shrink-0"
+              title="Quick Action"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Quick Action</span>
+              <span className="hidden sm:inline ml-1">Quick Action</span>
             </button>
           )}
-
 
           {/* Notifications (Member Portal only) */}
           {!isManagerOrOwner && (
             <Link
               href="/member/notifications"
-              className="relative p-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground transition-all flex items-center justify-center border border-border"
+              className="relative p-1.5 sm:p-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground transition-all flex items-center justify-center border border-border shrink-0"
               title="Notifications"
             >
-              <Bell className="w-4 h-4" />
+              <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center animate-pulse">
                   {unreadCount > 9 ? '9+' : unreadCount}
@@ -267,11 +351,11 @@ export const TopHeader: React.FC = () => {
           {/* Logout button */}
           <button
             onClick={logout}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-all"
+            className="flex items-center justify-center p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 transition-all shrink-0"
             title="Logout"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Logout</span>
+            <span className="hidden md:inline ml-1">Logout</span>
           </button>
         </div>
       </header>

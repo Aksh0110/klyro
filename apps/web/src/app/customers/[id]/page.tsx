@@ -27,6 +27,7 @@ import {
   MapPin,
   Eye,
   Loader2,
+  Building2,
 } from 'lucide-react';
 
 
@@ -34,7 +35,7 @@ export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
   const customerId = params?.id as string;
-  const { activeOrgId } = useAuth();
+  const { activeOrgId, branches, activeBranch } = useAuth();
 
   const [customer, setCustomer] = useState<ICustomer | null>(null);
   const [memberships, setMemberships] = useState<ICustomerMembership[]>([]);
@@ -325,6 +326,16 @@ export default function CustomerDetailPage() {
                 >
                   {customer.status}
                 </span>
+                {(() => {
+                  const cBranchId = (customer as any).branchId || (typeof (customer as any).branchId === 'object' ? (customer as any).branchId?._id : null);
+                  const bObj = branches.find((b) => b._id === cBranchId) || (activeBranch?._id === cBranchId ? activeBranch : null);
+                  return bObj ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider">
+                      <Building2 className="w-3 h-3" />
+                      <span>{bObj.name}</span>
+                    </span>
+                  ) : null;
+                })()}
               </div>
 
               <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">

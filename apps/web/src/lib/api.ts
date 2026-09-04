@@ -50,6 +50,13 @@ export async function apiRequest<T>(
     headers['x-tenant-id'] = organizationId;
   }
 
+  if (!headers['x-branch-id'] && typeof window !== 'undefined') {
+    const activeBranchId = localStorage.getItem('klyro_active_branch_id');
+    if (activeBranchId) {
+      headers['x-branch-id'] = activeBranchId;
+    }
+  }
+
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const response = await fetch(`${baseUrl}${cleanEndpoint}`, {
     ...options,

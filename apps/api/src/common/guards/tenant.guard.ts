@@ -65,10 +65,11 @@ export class TenantGuard implements CanActivate {
     }
 
     const headerBranchId = request.headers['x-branch-id'] as string | undefined;
+    const validBranchId = headerBranchId && Types.ObjectId.isValid(headerBranchId) ? headerBranchId : undefined;
 
     request.tenantContext = {
       organizationId: targetOrgId,
-      branchId: headerBranchId,
+      branchId: validBranchId,
       role: effectiveRole,
       userId: dbUser._id.toString(),
     };

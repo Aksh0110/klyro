@@ -22,6 +22,9 @@ export class MembershipsController {
     @GetTenantContext() tenantContext: TenantContext,
     @Body() dto: AssignMembershipDto,
   ) {
+    if (!dto.branchId && tenantContext.branchId) {
+      dto.branchId = tenantContext.branchId;
+    }
     return this.membershipsService.assignMembership(tenantContext.organizationId, dto);
   }
 
@@ -32,11 +35,18 @@ export class MembershipsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('status') status?: string,
+    @Query('branchId') branchId?: string,
   ) {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 20;
 
-    return this.membershipsService.findAllByOrganization(tenantContext.organizationId, pageNum, limitNum, status);
+    return this.membershipsService.findAllByOrganization(
+      tenantContext.organizationId,
+      pageNum,
+      limitNum,
+      status,
+      branchId || tenantContext.branchId,
+    );
   }
 
   @Get('customer/:customerId')

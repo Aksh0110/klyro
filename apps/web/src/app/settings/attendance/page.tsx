@@ -21,7 +21,7 @@ import Link from 'next/link';
 import { GymLocationMap } from '@/components/GymLocationMap';
 
 export default function AttendanceSettingsPage() {
-  const { activeOrgId } = useAuth();
+  const { activeOrgId, activeBranchId } = useAuth();
   const [branches, setBranches] = useState<IBranch[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -40,7 +40,7 @@ export default function AttendanceSettingsPage() {
     if (activeOrgId) {
       fetchBranches();
     }
-  }, [activeOrgId]);
+  }, [activeOrgId, activeBranchId]);
 
   const fetchBranches = async () => {
     if (!activeOrgId) return;
@@ -55,7 +55,7 @@ export default function AttendanceSettingsPage() {
       const branchList = (res as any).data || res;
       setBranches(branchList);
       if (branchList.length > 0) {
-        const primary = branchList[0];
+        const primary = branchList.find((b: IBranch) => b._id === activeBranchId) || branchList[0];
         setSelectedBranchId(primary._id);
         populateForm(primary);
       }

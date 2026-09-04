@@ -29,6 +29,9 @@ export class GymBillingController {
     @GetTenantContext() tenantContext: TenantContext,
     @Body() dto: CreateInvoiceDto,
   ) {
+    if (!dto.branchId && tenantContext.branchId) {
+      dto.branchId = tenantContext.branchId;
+    }
     return this.gymBillingService.createInvoice(tenantContext.organizationId, dto);
   }
 
@@ -40,7 +43,12 @@ export class GymBillingController {
     @Query('status') status?: string,
     @Query('branchId') branchId?: string,
   ) {
-    return this.gymBillingService.getInvoices(tenantContext.organizationId, customerId, status, branchId);
+    return this.gymBillingService.getInvoices(
+      tenantContext.organizationId,
+      customerId,
+      status,
+      branchId || tenantContext.branchId,
+    );
   }
 
   @Get('invoices/:id')
@@ -58,8 +66,14 @@ export class GymBillingController {
     @GetTenantContext() tenantContext: TenantContext,
     @Query('customerId') customerId?: string,
     @Query('invoiceId') invoiceId?: string,
+    @Query('branchId') branchId?: string,
   ) {
-    return this.gymBillingService.getPayments(tenantContext.organizationId, customerId, invoiceId);
+    return this.gymBillingService.getPayments(
+      tenantContext.organizationId,
+      customerId,
+      invoiceId,
+      branchId || tenantContext.branchId,
+    );
   }
 
   @Post('payments')
@@ -115,6 +129,10 @@ export class GymBillingController {
     @GetTenantContext() tenantContext: TenantContext,
     @Query() queryDto: FinancialSummaryQueryDto,
   ) {
-    return this.gymBillingService.getFinancialSummary(tenantContext.organizationId, queryDto);
+    const effectiveQuery = {
+      ...queryDto,
+      branchId: queryDto?.branchId || tenantContext.branchId,
+    };
+    return this.gymBillingService.getFinancialSummary(tenantContext.organizationId, effectiveQuery);
   }
 }

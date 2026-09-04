@@ -144,4 +144,44 @@ describe('GymBillingService', () => {
       }),
     ).rejects.toThrow(BadRequestException);
   });
+
+  it('should filter payments strictly by branchId when provided', async () => {
+    const orgId = new Types.ObjectId().toString();
+    const branchId = new Types.ObjectId().toString();
+
+    const mockQueryChain = {
+      populate: jest.fn().mockReturnThis(),
+      sort: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), branchId: new Types.ObjectId(branchId) }]),
+    };
+
+    mockPaymentModel.find.mockReturnValue(mockQueryChain);
+
+    const result = await service.getPayments(orgId, undefined, undefined, branchId);
+
+    expect(mockPaymentModel.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: new Types.ObjectId(orgId),
+        branchId: new Types.ObjectId(branchId),
+      }),
+    );
+    expect(result).toHaveLength(1);
+  });
+
+  it('should not filter payments by branchId when omitted', async () => {
+    const orgId = new Types.ObjectId().toString();
+
+    const mockQueryChain = {
+      populate: jest.fn().mockReturnThis(),
+      sort: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([]),
+    };
+
+    mockPaymentModel.find.mockReturnValue(mockQueryChain);
+
+    await service.getPayments(orgId);
+
+    const callArg = mockPaymentModel.find.mock.calls[mockPaymentModel.find.mock.calls.length - 1][0];
+    expect(callArg.branchId).toBeUndefined();
+  });
 });

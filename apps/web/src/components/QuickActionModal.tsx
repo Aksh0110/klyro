@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Building2,
 } from 'lucide-react';
 
 import { validatePhoneNumber, sanitizePhoneNumber } from '@/lib/phone-validation';
@@ -33,7 +34,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
   initialTab = 'onboard',
 }) => {
   const router = useRouter();
-  const { activeOrgId } = useAuth();
+  const { activeOrgId, activeBranchId, activeBranch, branches: authBranches } = useAuth();
   const [activeTab, setActiveTab] = useState<'onboard' | 'payment' | 'renew' | 'announcement'>(initialTab);
 
   // Common data
@@ -47,6 +48,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [onboardBranchId, setOnboardBranchId] = useState('');
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [paymentMode, setPaymentMode] = useState<'PAY_NOW' | 'PAY_LATER'>('PAY_NOW');
@@ -95,17 +97,20 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
           apiRequest<IMembershipPlan[]>('/membership-plans', {}, activeOrgId).catch(() => []),
           apiRequest<IBranch[]>('/branches', {}, activeOrgId).catch(() => []),
         ]);
+        const finalBranches = branchList?.length ? branchList : authBranches;
         setPlans(planList || []);
-        setBranches(branchList || []);
+        setBranches(finalBranches || []);
         if (planList?.length > 0 && !selectedPlanId) setSelectedPlanId(planList[0]._id);
         if (planList?.length > 0 && !renewPlanId) setRenewPlanId(planList[0]._id);
-        if (branchList?.length > 0 && !annBranchId) setAnnBranchId(branchList[0]._id);
+        const defaultBranch = activeBranchId || (finalBranches?.length > 0 ? finalBranches[0]._id : '');
+        setOnboardBranchId((prev) => prev || defaultBranch);
+        setAnnBranchId((prev) => prev || defaultBranch);
       } catch (err) {
         console.error('Failed to load quick action metadata', err);
       }
     };
     fetchMetadata();
-  }, [isOpen, activeOrgId]);
+  }, [isOpen, activeOrgId, activeBranchId]);
 
   // Fetch pending payment members for Collect Payment tab
   useEffect(() => {
@@ -247,6 +252,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
         {
           method: 'POST',
           body: JSON.stringify({
+            branchId: onboardBranchId || activeBranchId || undefined,
             firstName,
             lastName: lastName || undefined,
             phone: cleanedPhone,
@@ -523,34 +529,74 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                 </div>
               )}
 
+              {/* Assigned Branch Banner */}
+              <div className="p-2.5 rounded-xl bg-[#122131] border border-[#273647] space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#958ea0]">
+                      Enrolling Gym Branch
+                    </span>
+                  </div>
+                  {(onboardBranchId === activeBranchId || !onboardBranchId) && (
+                    <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-[9px] font-bold uppercase tracking-wider shrink-0 border border-primary/20">
+                      Default Active
+                    </span>
+                  )}
+                </div>
+
+                {branches.length > 1 ? (
+                  <div className="relative">
+                    <select
+                      value={onboardBranchId || activeBranchId || ''}
+                      onChange={(e) => setOnboardBranchId(e.target.value)}
+                      className="w-full bg-[#1c2b3c] border border-[#273647] hover:border-[#d0bcff]/50 rounded-xl px-2.5 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff] transition-all font-medium cursor-pointer"
+                      title="Select Branch for Member"
+                    >
+                      {branches.map((b) => (
+                        <option key={b._id} value={b._id}>
+                          {b.name} {b._id === activeBranchId ? '(Default Active)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="px-1 py-0.5">
+                    <span className="text-xs font-bold text-[#d4e4fa]">
+                      {branches[0]?.name || activeBranch?.name || 'Main Branch'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
               {/* Primary Compact Fields */}
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">First Name *</label>
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block truncate">First Name *</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Rahul"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
+                    className="w-full h-9 bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Last Name</label>
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block truncate">Last Name</label>
                   <input
                     type="text"
                     placeholder="e.g. Sharma"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
+                    className="w-full h-9 bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Mobile Number (10 digits) *</label>
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block truncate">Mobile Number *</label>
                   <input
                     type="tel"
                     required
@@ -559,17 +605,16 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                     placeholder="e.g. 9876543210"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, '').slice(0, 13))}
-                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
+                    className="w-full h-9 bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
                   />
                 </div>
 
-
                 <div>
-                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Membership Plan *</label>
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block truncate">Membership Plan *</label>
                   <select
                     value={selectedPlanId}
                     onChange={(e) => setSelectedPlanId(e.target.value)}
-                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
+                    className="w-full h-9 bg-[#1c2b3c] border border-[#273647] rounded-xl px-2 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff] truncate cursor-pointer"
                   >
                     {plans.map((p) => (
                       <option key={p._id} value={p._id}>
@@ -583,24 +628,24 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
               {/* Payment Mode & Discount Row */}
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Discount (₹)</label>
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block truncate">Discount (₹)</label>
                   <input
                     type="number"
                     min="0"
                     placeholder="0"
                     value={discountAmount || ''}
                     onChange={(e) => setDiscountAmount(Number(e.target.value) || 0)}
-                    className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 py-1.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
+                    className="w-full h-9 bg-[#1c2b3c] border border-[#273647] rounded-xl px-2.5 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block">Collection</label>
-                  <div className="grid grid-cols-2 gap-1 bg-[#1c2b3c] p-1 rounded-xl border border-[#273647]">
+                  <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block truncate">Collection</label>
+                  <div className="grid grid-cols-2 gap-1 bg-[#1c2b3c] p-1 rounded-xl border border-[#273647] h-9 items-center">
                     <button
                       type="button"
                       onClick={() => setPaymentMode('PAY_NOW')}
-                      className={`py-1 rounded-lg text-[10px] font-bold transition-all text-center ${
+                      className={`h-7 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center ${
                         paymentMode === 'PAY_NOW' ? 'bg-[#d0bcff] text-[#3c0091]' : 'text-[#958ea0]'
                       }`}
                     >
@@ -609,7 +654,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setPaymentMode('PAY_LATER')}
-                      className={`py-1 rounded-lg text-[10px] font-bold transition-all text-center ${
+                      className={`h-7 rounded-lg text-[10px] font-bold transition-all text-center flex items-center justify-center ${
                         paymentMode === 'PAY_LATER' ? 'bg-[#d0bcff] text-[#3c0091]' : 'text-[#958ea0]'
                       }`}
                     >
@@ -622,11 +667,11 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
               {paymentMode === 'PAY_NOW' && (
                 <div className="grid grid-cols-2 gap-2.5 p-2.5 rounded-xl bg-[#0d1c2d] border border-[#273647]">
                   <div>
-                    <label className="text-[10px] font-bold text-[#958ea0] mb-0.5 block">Payment Method</label>
+                    <label className="text-[10px] font-bold text-[#958ea0] mb-0.5 block truncate">Payment Method</label>
                     <select
                       value={paymentMethod}
                       onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="w-full bg-[#1c2b3c] border border-[#273647] rounded-lg px-2 py-1 text-xs text-[#d4e4fa]"
+                      className="w-full h-8 bg-[#1c2b3c] border border-[#273647] rounded-lg px-2 text-xs text-[#d4e4fa] cursor-pointer"
                     >
                       <option value="UPI">UPI</option>
                       <option value="CASH">Cash</option>
@@ -636,13 +681,13 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-[#958ea0] mb-0.5 block">Reference / UTR</label>
+                    <label className="text-[10px] font-bold text-[#958ea0] mb-0.5 block truncate">Reference / UTR</label>
                     <input
                       type="text"
                       placeholder="Optional"
                       value={paymentReference}
                       onChange={(e) => setPaymentReference(e.target.value)}
-                      className="w-full bg-[#1c2b3c] border border-[#273647] rounded-lg px-2 py-1 text-xs text-[#d4e4fa]"
+                      className="w-full h-8 bg-[#1c2b3c] border border-[#273647] rounded-lg px-2 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff]"
                     />
                   </div>
                 </div>

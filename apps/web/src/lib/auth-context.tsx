@@ -2,13 +2,16 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { IUser, AuthResponseData, SendOtpResponseData, IOrganization } from '@klyro/types';
+import { IUser, AuthResponseData, SendOtpResponseData, IOrganization, IBranch } from '@klyro/types';
 import { VerticalType } from '@klyro/config';
 import { apiRequest } from './api';
 
 interface AuthContextType {
   user: IUser | null;
   activeOrgId: string | null;
+  branches: IBranch[];
+  activeBranchId: string | null;
+  activeBranch: IBranch | null;
   isLoading: boolean;
   subscriptionStatus: string | null;
   isSubscriptionValid: boolean;
@@ -16,6 +19,8 @@ interface AuthContextType {
   verifyOtp: (phone: string, otp: string) => Promise<AuthResponseData>;
   createOrganization: (name: string, vertical: VerticalType, ownerName?: string, ownerEmail?: string) => Promise<any>;
   setActiveOrgId: (orgId: string) => void;
+  setActiveBranchId: (branchId: string) => void;
+  refreshBranches: () => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -25,6 +30,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<IUser | null>(null);
   const [activeOrgId, setActiveOrgIdState] = useState<string | null>(null);
+  const [branches, setBranches] = useState<IBranch[]>([]);
+  const [activeBranchId, setActiveBranchIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [isSubscriptionValid, setIsSubscriptionValid] = useState<boolean>(false);
@@ -37,6 +44,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('klyro_active_org_id', orgId);
     }
   };
+
+  const setActiveBranchId = (branchId: string) => {
+    setActiveBranchIdState(branchId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('klyro_active_branch_id', branchId);
+      window.dispatchEvent(new Event('klyro_branch_changed'));
+    }
+  };
+
+  const loadBranches = async (orgId: string) => {
+    try {
+      const branchList = await apiRequest<IBranch[]>('/branches', {}, orgId);
+      const list = Array.isArray(branchList) ? branchList : (branchList as any)?.data || [];
+      setBranches(list);
+
+      const savedBranchId = typeof window !== 'undefined' ? localStorage.getItem('klyro_active_branch_id') : null;
+      if (savedBranchId && list.some((b: IBranch) => b._id === savedBranchId)) {
+        setActiveBranchIdState(savedBranchId);
+      } else if (list.length > 0) {
+        setActiveBranchId(list[0]._id);
+      } else {
+        setActiveBranchIdState(null);
+      }
+    } catch (e) {
+      console.error('Failed to load branches:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (activeOrgId) {
+      loadBranches(activeOrgId);
+    }
+  }, [activeOrgId]);
+
+  const refreshBranches = async () => {
+    if (activeOrgId) {
+      await loadBranches(activeOrgId);
+    }
+  };
+
+  const activeBranch = branches.find((b) => b._id === activeBranchId) || (branches.length > 0 ? branches[0] : null);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -205,8 +253,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('klyro_access_token');
     localStorage.removeItem('klyro_refresh_token');
     localStorage.removeItem('klyro_active_org_id');
+    localStorage.removeItem('klyro_active_branch_id');
     setUser(null);
     setActiveOrgIdState(null);
+    setActiveBranchIdState(null);
+    setBranches([]);
     setSubscriptionStatus(null);
     setIsSubscriptionValid(false);
     router.push('/login');
@@ -226,6 +277,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         activeOrgId,
+        branches,
+        activeBranchId,
+        activeBranch,
         isLoading,
         subscriptionStatus,
         isSubscriptionValid,
@@ -233,6 +287,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         verifyOtp,
         createOrganization,
         setActiveOrgId,
+        setActiveBranchId,
+        refreshBranches,
         logout,
         refreshUser,
       }}

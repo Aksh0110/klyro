@@ -22,6 +22,9 @@ export class CustomersController {
     @GetTenantContext() tenantContext: TenantContext,
     @Body() dto: CreateCustomerDto,
   ) {
+    if (!dto.branchId && tenantContext.branchId) {
+      dto.branchId = tenantContext.branchId;
+    }
     return this.customersService.createCustomer(tenantContext.organizationId, dto);
   }
 
@@ -42,7 +45,7 @@ export class CustomersController {
       page: pageNum,
       limit: limitNum,
       search,
-      branchId,
+      branchId: branchId || tenantContext.branchId,
       status,
     });
   }

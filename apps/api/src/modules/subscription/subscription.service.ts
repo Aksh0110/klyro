@@ -231,7 +231,7 @@ export class SubscriptionService {
       method: this.provider.name,
       provider: this.provider.name,
       providerPaymentId: paymentRes.providerPaymentId,
-      providerOrderId: paymentRes.providerOrderId || providerRes.providerSubscriptionId,
+      providerOrderId: providerRes.providerSubscriptionId || paymentRes.providerOrderId,
       metadata: {
         targetPlanId: plan._id.toString(),
         targetPlanCode: plan.code,
@@ -300,10 +300,15 @@ export class SubscriptionService {
     const periodEnd = new Date(now);
     periodEnd.setDate(periodEnd.getDate() + 30);
 
+    // Fetch target or current plan
+    const newPlan =
+      targetPlanId && Types.ObjectId.isValid(targetPlanId)
+        ? await this.planModel.findById(targetPlanId).exec()
+        : await this.planModel.findById(subscription.subscriptionPlanId).exec();
+
     // Apply immediate activation of new plan
     if (targetPlanId && Types.ObjectId.isValid(targetPlanId)) {
       subscription.subscriptionPlanId = new Types.ObjectId(targetPlanId) as any;
-      const newPlan = await this.planModel.findById(targetPlanId).exec();
       if (newPlan) {
         subscription.amount = newPlan.monthlyPrice;
       }
@@ -320,11 +325,40 @@ export class SubscriptionService {
     subscription.cancelAtPeriodEnd = false;
     await subscription.save();
 
-    // Create & Record verified Payment transaction in SubscriptionPayment collection
+    // Create or Update verified Payment transaction in SubscriptionPayment collection
     const paymentId = dto.razorpayPaymentId || `pay_rzp_${Date.now()}`;
-    const orderId = dto.razorpayOrderId || subscription.providerSubscriptionId || `order_rzp_${Date.now()}`;
+    const orderId =
+      dto.razorpayOrderId ||
+      subscription.pendingProviderSubscriptionId ||
+      subscription.providerSubscriptionId ||
+      `order_rzp_${Date.now()}`;
 
-    let paymentRecord = await this.subPaymentModel.findOne({ providerPaymentId: paymentId }).exec();
+    // Find existing pending payment record created during checkout
+    let paymentRecord = await this.subPaymentModel
+      .findOne({
+        $or: [
+          { providerPaymentId: paymentId },
+          { providerOrderId: orderId },
+          {
+            organizationId: orgObjectId,
+            subscriptionId: subscription._id,
+            status: SUBSCRIPTION_PAYMENT_STATUS.PENDING,
+          },
+        ],
+      })
+      .exec();
+
+    const paymentMetadata = {
+      ...(paymentRecord?.metadata || {}),
+      targetPlanId: targetPlanId,
+      targetPlanCode: newPlan?.code,
+      targetPlanName: newPlan?.name,
+      planName: newPlan?.name,
+      memberLimit: newPlan?.memberLimit,
+      billingPeriodStart: now,
+      billingPeriodEnd: periodEnd,
+      isRenewal: !subscription.pendingPlanId,
+    };
 
     if (!paymentRecord) {
       paymentRecord = await this.subPaymentModel.create({
@@ -338,11 +372,15 @@ export class SubscriptionService {
         providerPaymentId: paymentId,
         providerOrderId: orderId,
         paidAt: now,
+        metadata: paymentMetadata,
       });
     } else {
       paymentRecord.status = SUBSCRIPTION_PAYMENT_STATUS.SUCCESS;
+      paymentRecord.providerPaymentId = paymentId;
+      paymentRecord.providerOrderId = orderId;
       paymentRecord.paidAt = now;
       paymentRecord.amount = subscription.amount || paymentRecord.amount;
+      paymentRecord.metadata = paymentMetadata;
       await paymentRecord.save();
     }
 
@@ -381,15 +419,26 @@ export class SubscriptionService {
 
     // Mark matching pending payment as FAILED
     const orderId = dto?.orderId;
-    const query: any = {
-      organizationId: orgObjectId,
-      status: SUBSCRIPTION_PAYMENT_STATUS.PENDING,
-    };
-    if (orderId) {
-      query.providerOrderId = orderId;
+    let pendingPayment = orderId
+      ? await this.subPaymentModel
+          .findOne({
+            organizationId: orgObjectId,
+            providerOrderId: orderId,
+            status: SUBSCRIPTION_PAYMENT_STATUS.PENDING,
+          })
+          .exec()
+      : null;
+
+    if (!pendingPayment) {
+      pendingPayment = await this.subPaymentModel
+        .findOne({
+          organizationId: orgObjectId,
+          status: SUBSCRIPTION_PAYMENT_STATUS.PENDING,
+        })
+        .sort({ createdAt: -1 })
+        .exec();
     }
 
-    const pendingPayment = await this.subPaymentModel.findOne(query).sort({ createdAt: -1 }).exec();
     if (pendingPayment) {
       pendingPayment.status = SUBSCRIPTION_PAYMENT_STATUS.FAILED;
       pendingPayment.metadata = {

@@ -17,12 +17,13 @@ import {
   CalendarCheck,
   Clock,
   Sparkles,
+  Building2,
 } from 'lucide-react';
 import { QuickActionModal } from '@/components/QuickActionModal';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { activeOrgId, user } = useAuth();
+  const { activeOrgId, activeBranchId, activeBranch, user } = useAuth();
   const [org, setOrg] = useState<IOrganization | null>(null);
   const [subSummary, setSubSummary] = useState<any>(null);
   const [finSummary, setFinSummary] = useState<any>(null);
@@ -83,7 +84,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchTenantData();
-  }, [activeOrgId]);
+    const handleBranchChanged = () => fetchTenantData();
+    window.addEventListener('klyro_branch_changed', handleBranchChanged);
+    return () => window.removeEventListener('klyro_branch_changed', handleBranchChanged);
+  }, [activeOrgId, activeBranchId]);
 
   // Subscription Renewal Info
   const sub = subSummary?.subscription;
@@ -175,9 +179,17 @@ export default function DashboardPage() {
             <h1 className="text-xl md:text-2xl font-bold text-[#d4e4fa]">
               {getTimeGreeting()}, {user?.name ? user.name : user?.phone ? `Owner (+${user.phone.slice(-4)})` : 'Gym Owner'} 👋
             </h1>
-            <p className="text-xs text-[#958ea0]">
-              {org?.name || 'Klyro Gym'} • What needs your attention today?
-            </p>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#958ea0] mt-1">
+              <span className="font-semibold text-[#d4e4fa]">{org?.name || 'Klyro Gym'}</span>
+              <span>•</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[11px] font-semibold">
+                <Building2 className="w-3 h-3" />
+                <span>{activeBranch?.name || 'Main Branch'}</span>
+                <span className="text-[9px] opacity-75 font-normal">(Default Active)</span>
+              </span>
+              <span className="hidden sm:inline">•</span>
+              <span className="hidden sm:inline">What needs your attention today?</span>
+            </div>
           </div>
 
           {/* Dedicated Gym Owner SaaS Subscription Badge */}
