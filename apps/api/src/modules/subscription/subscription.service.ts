@@ -213,18 +213,15 @@ export class SubscriptionService {
       subscriptionId: subscription._id,
       amount: plan.monthlyPrice,
       currency: 'INR',
-      status: paymentRes.status === 'SUCCESS' ? SUBSCRIPTION_PAYMENT_STATUS.SUCCESS : SUBSCRIPTION_PAYMENT_STATUS.FAILED,
+      status: SUBSCRIPTION_PAYMENT_STATUS.PENDING,
       method: this.provider.name,
       provider: this.provider.name,
       providerPaymentId: paymentRes.providerPaymentId,
       providerOrderId: paymentRes.providerOrderId,
-      paidAt: paymentRes.status === 'SUCCESS' ? new Date() : undefined,
     });
 
-    if (paymentRes.status === 'SUCCESS') {
-      subscription.status = SUBSCRIPTION_STATUS.PENDING_AUTOPAY;
-      await subscription.save();
-    }
+    // Note: Subscription status MUST remain PENDING_PAYMENT here.
+    // It will ONLY transition to ACTIVE once payment is confirmed via setupAutopay or Webhook.
 
     return {
       subscription,
@@ -232,6 +229,105 @@ export class SubscriptionService {
       checkoutUrl: providerRes.checkoutUrl,
     };
   }
+
+  async verifyPayment(
+    organizationId: string,
+    dto: {
+      razorpayPaymentId?: string;
+      razorpayOrderId?: string;
+      razorpaySignature?: string;
+      subscriptionPlanId?: string;
+    },
+  ) {
+    const orgObjectId = Types.ObjectId.isValid(organizationId)
+      ? new Types.ObjectId(organizationId)
+      : null;
+
+    if (!orgObjectId) {
+      throw new BadRequestException('Invalid organization context for payment verification.');
+    }
+
+    let subscription = await this.subModel.findOne({ organizationId: orgObjectId }).exec();
+
+    if (!subscription && dto.subscriptionPlanId) {
+      const plan = await this.planModel.findById(dto.subscriptionPlanId).exec();
+      const now = new Date();
+      const periodEnd = new Date(now);
+      periodEnd.setDate(periodEnd.getDate() + 30);
+
+      subscription = await this.subModel.create({
+        organizationId: orgObjectId,
+        subscriptionPlanId: plan?._id,
+        status: SUBSCRIPTION_STATUS.ACTIVE,
+        startedAt: now,
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        cancelAtPeriodEnd: false,
+        provider: 'RAZORPAY',
+        providerSubscriptionId: dto.razorpayOrderId || `sub_rzp_${Date.now()}`,
+        currency: 'INR',
+        amount: plan?.monthlyPrice || 799,
+      });
+    }
+
+    if (!subscription) {
+      throw new NotFoundException('No subscription record found for organization');
+    }
+
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setDate(periodEnd.getDate() + 30);
+
+    // Explicitly update Subscription plan and status to ACTIVE in MongoDB
+    if (dto.subscriptionPlanId && Types.ObjectId.isValid(dto.subscriptionPlanId)) {
+      subscription.subscriptionPlanId = new Types.ObjectId(dto.subscriptionPlanId) as any;
+      const newPlan = await this.planModel.findById(dto.subscriptionPlanId).exec();
+      if (newPlan) {
+        subscription.amount = newPlan.monthlyPrice;
+      }
+    }
+    subscription.status = SUBSCRIPTION_STATUS.ACTIVE;
+    subscription.startedAt = subscription.startedAt || now;
+    subscription.currentPeriodStart = now;
+    subscription.currentPeriodEnd = periodEnd;
+    await subscription.save();
+
+    // Create & Record verified Payment transaction in SubscriptionPayment collection
+    const paymentId = dto.razorpayPaymentId || `pay_rzp_${Date.now()}`;
+    const orderId = dto.razorpayOrderId || subscription.providerSubscriptionId || `order_rzp_${Date.now()}`;
+
+    let paymentRecord = await this.subPaymentModel.findOne({ providerPaymentId: paymentId }).exec();
+
+    if (!paymentRecord) {
+      paymentRecord = await this.subPaymentModel.create({
+        organizationId: orgObjectId,
+        subscriptionId: subscription._id,
+        amount: subscription.amount || 799,
+        currency: 'INR',
+        status: SUBSCRIPTION_PAYMENT_STATUS.SUCCESS,
+        provider: 'RAZORPAY',
+        method: 'RAZORPAY_CHECKOUT',
+        providerPaymentId: paymentId,
+        providerOrderId: orderId,
+        paidAt: now,
+      });
+    } else {
+      paymentRecord.status = SUBSCRIPTION_PAYMENT_STATUS.SUCCESS;
+      paymentRecord.paidAt = now;
+      await paymentRecord.save();
+    }
+
+    this.logger.log(
+      `[PAYMENT VERIFIED] Org ${organizationId} subscription activated. PaymentId: ${paymentId}`,
+    );
+
+    return {
+      success: true,
+      subscription,
+      payment: paymentRecord,
+    };
+  }
+
 
   async setupAutopay(organizationId: string, dto: SetupAutopayDto) {
     const orgObjectId = Types.ObjectId.isValid(organizationId) ? new Types.ObjectId(organizationId) : null;

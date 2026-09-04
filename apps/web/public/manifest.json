@@ -1,21 +1,49 @@
 {
+  "id": "/?source=pwa",
+  "name": "Klyro",
   "short_name": "Klyro",
-  "name": "Klyro Multi-Vertical SaaS",
+  "description": "Streamlined Gym Management Platform",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#051424",
+  "theme_color": "#051424",
+  "orientation": "portrait",
+  "categories": ["business", "health", "fitness"],
   "icons": [
     {
       "src": "/icon-192.png",
+      "sizes": "192x192",
       "type": "image/png",
-      "sizes": "192x192"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
-      "sizes": "512x512"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
-  ],
-  "start_url": "/",
-  "background_color": "#0f172a",
-  "theme_color": "#6366f1",
-  "display": "standalone",
-  "orientation": "portrait"
+  ]
 }
+
+
+
+

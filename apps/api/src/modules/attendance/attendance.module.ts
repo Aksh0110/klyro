@@ -10,10 +10,12 @@ import { MembershipAccessService } from './services/membership-access.service';
 import { GpsValidationService } from './services/gps-validation.service';
 
 import { UsersModule } from '../users/users.module';
+import { SubscriptionModule } from '../subscription/subscription.module';
 
 @Module({
   imports: [
     UsersModule,
+    SubscriptionModule,
     MongooseModule.forFeature([
       { name: Attendance.name, schema: AttendanceSchema },
       { name: Customer.name, schema: CustomerSchema },
@@ -26,3 +28,4 @@ import { UsersModule } from '../users/users.module';
   exports: [AttendanceService, MembershipAccessService, GpsValidationService],
 })
 export class AttendanceModule {}
+

@@ -22,6 +22,7 @@ import { RetentionInsightService } from './services/retention-insight.service';
 
 import { CommunicationsController } from './communications.controller';
 import { UsersModule } from '../users/users.module';
+import { SubscriptionModule } from '../subscription/subscription.module';
 
 @Module({
   imports: [
@@ -37,8 +38,10 @@ import { UsersModule } from '../users/users.module';
       { name: Attendance.name, schema: AttendanceSchema },
     ]),
     UsersModule,
+    SubscriptionModule,
   ],
   controllers: [CommunicationsController],
+
   providers: [
     InAppProvider,
     WebPushProvider,

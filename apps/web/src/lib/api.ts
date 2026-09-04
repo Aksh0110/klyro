@@ -14,12 +14,17 @@ export function getApiBaseUrl(): string {
       return 'http://localhost:4000/api/v1';
     }
 
+    if (hostname.includes('gymbook.ai')) {
+      return 'https://klyrobackend.gymbook.ai/api/v1';
+    }
+
     // Production domain fallback (NGINX reverse proxy handles routing without port)
     return `${protocol}//${hostname}/api/v1`;
   }
 
   return 'http://localhost:4000/api/v1';
 }
+
 
 export const API_BASE_URL = getApiBaseUrl();
 
@@ -58,13 +63,16 @@ export async function apiRequest<T>(
     const errorCode = json?.error?.code || json?.code;
 
     if (
-      (errorCode === 'SUBSCRIPTION_ENTITLEMENT_REQUIRED' || response.status === 402) &&
+      (errorCode === 'SUBSCRIPTION_ENTITLEMENT_REQUIRED' || response.status === 402 || response.status === 403) &&
       typeof window !== 'undefined' &&
+      window.location.pathname !== '/settings/subscription/plans' &&
+      window.location.pathname !== '/settings/subscription' &&
       window.location.pathname !== '/setup/subscription' &&
       window.location.pathname !== '/login'
     ) {
-      window.location.href = '/setup/subscription';
+      window.location.replace('/settings/subscription/plans');
     }
+
 
     throw new Error(errorMsg);
   }

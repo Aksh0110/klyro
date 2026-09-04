@@ -124,4 +124,14 @@ export class BranchesService {
 
     return branch.save();
   }
+
+  async deleteBranch(id: string, organizationId: string): Promise<{ success: boolean; message: string }> {
+    const branch = await this.findOneByIdAndOrg(id, organizationId);
+    const count = await this.branchModel.countDocuments({ organizationId: new Types.ObjectId(organizationId) }).exec();
+    if (count <= 1) {
+      throw new BadRequestException('Cannot delete the only branch of an organization. At least one branch is required.');
+    }
+    await this.branchModel.deleteOne({ _id: branch._id }).exec();
+    return { success: true, message: `Branch '${branch.name}' has been deleted.` };
+  }
 }

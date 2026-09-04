@@ -10,11 +10,14 @@ interface AuthContextType {
   user: IUser | null;
   activeOrgId: string | null;
   isLoading: boolean;
+  subscriptionStatus: string | null;
+  isSubscriptionValid: boolean;
   sendOtp: (phone: string) => Promise<SendOtpResponseData>;
   verifyOtp: (phone: string, otp: string) => Promise<AuthResponseData>;
   createOrganization: (name: string, vertical: VerticalType, ownerName?: string, ownerEmail?: string) => Promise<any>;
   setActiveOrgId: (orgId: string) => void;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,6 +26,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<IUser | null>(null);
   const [activeOrgId, setActiveOrgIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [isSubscriptionValid, setIsSubscriptionValid] = useState<boolean>(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -40,6 +45,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (!token) {
         setIsLoading(false);
+        setSubscriptionStatus(null);
+        setIsSubscriptionValid(false);
         if (pathname !== '/login' && pathname !== '/verify-otp') {
           router.push('/login');
         }
@@ -62,30 +69,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // Route redirection check with strict subscription verification
-        if (userData.organizationIds.length === 0 && pathname !== '/setup') {
-          router.push('/setup');
+        if (userData.organizationIds.length === 0) {
+          setSubscriptionStatus(null);
+          setIsSubscriptionValid(false);
+          if (pathname !== '/setup' && pathname !== '/login' && pathname !== '/verify-otp') {
+            router.replace('/setup');
+          }
         } else if (userData.organizationIds.length > 0) {
           const checkOrgId = targetOrg || userData.organizationIds[0];
           try {
             const subData = await apiRequest<any>('/subscription/current', {}, checkOrgId);
-            const subStatus = subData?.subscription?.status;
-            const isPaidOrTrial = subStatus === 'ACTIVE' || subStatus === 'TRIAL' || subStatus === 'PENDING_AUTOPAY';
+            const subStatus = subData?.subscription?.status || null;
+            const valid = subStatus === 'ACTIVE' || subStatus === 'TRIAL';
 
-            if (!isPaidOrTrial) {
-              if (pathname !== '/setup/subscription') {
-                router.push('/setup/subscription');
+            setSubscriptionStatus(subStatus);
+            setIsSubscriptionValid(valid);
+
+            if (!valid) {
+              if (
+                pathname !== '/settings/subscription/plans' &&
+                pathname !== '/settings/subscription' &&
+                pathname !== '/setup/subscription' &&
+                pathname !== '/setup' &&
+                pathname !== '/login' &&
+                pathname !== '/verify-otp'
+              ) {
+                router.replace('/settings/subscription/plans');
               }
-            } else if (pathname === '/login' || pathname === '/verify-otp' || pathname === '/setup' || pathname === '/setup/subscription') {
+            } else if (pathname === '/login' || pathname === '/verify-otp' || pathname === '/setup') {
               const userRole = userData.roles?.find((r) => r.organizationId === checkOrgId)?.role || 'MEMBER';
               if (userRole === 'MEMBER') {
-                router.push('/member');
+                router.replace('/member');
               } else {
-                router.push('/dashboard');
+                router.replace('/dashboard');
               }
             }
           } catch {
-            if (pathname !== '/setup/subscription' && pathname !== '/login' && pathname !== '/verify-otp') {
-              router.push('/setup/subscription');
+            setSubscriptionStatus(null);
+            setIsSubscriptionValid(false);
+            if (
+              pathname !== '/settings/subscription/plans' &&
+              pathname !== '/settings/subscription' &&
+              pathname !== '/setup/subscription' &&
+              pathname !== '/setup' &&
+              pathname !== '/login' &&
+              pathname !== '/verify-otp'
+            ) {
+              router.replace('/settings/subscription/plans');
             }
           }
         }
@@ -94,6 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } finally {
         setIsLoading(false);
       }
+
     };
 
     initAuth();
@@ -122,24 +153,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       try {
         const subData = await apiRequest<any>('/subscription/current', {}, primaryOrgId);
-        const subStatus = subData?.subscription?.status;
-        const isPaidOrTrial = subStatus === 'ACTIVE' || subStatus === 'TRIAL' || subStatus === 'PENDING_AUTOPAY';
+        const subStatus = subData?.subscription?.status || null;
+        const valid = subStatus === 'ACTIVE' || subStatus === 'TRIAL';
 
-        if (isPaidOrTrial) {
+        setSubscriptionStatus(subStatus);
+        setIsSubscriptionValid(valid);
+
+
+        if (valid) {
           const userRole = data.user.roles?.find((r) => r.organizationId === primaryOrgId)?.role || 'MEMBER';
           if (userRole === 'MEMBER') {
-            router.push('/member');
+            router.replace('/member');
           } else {
-            router.push('/dashboard');
+            router.replace('/dashboard');
           }
         } else {
-          router.push('/setup/subscription');
+          router.replace('/setup/subscription');
         }
       } catch {
-        router.push('/setup/subscription');
+        setSubscriptionStatus(null);
+        setIsSubscriptionValid(false);
+        router.replace('/setup/subscription');
       }
     } else {
-      router.push('/setup');
+      router.replace('/setup');
     }
 
     return data;
@@ -158,7 +195,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updatedUser = await apiRequest<IUser>('/auth/me');
     setUser(updatedUser);
 
-    router.push('/setup/subscription');
+    setSubscriptionStatus(null);
+    setIsSubscriptionValid(false);
+    router.replace('/setup/subscription');
     return result;
   };
 
@@ -168,7 +207,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('klyro_active_org_id');
     setUser(null);
     setActiveOrgIdState(null);
+    setSubscriptionStatus(null);
+    setIsSubscriptionValid(false);
     router.push('/login');
+  };
+
+  const refreshUser = async () => {
+    try {
+      const userData = await apiRequest<IUser>('/auth/me');
+      setUser(userData);
+    } catch (e) {
+      console.error('Failed to refresh user', e);
+    }
   };
 
   return (
@@ -177,17 +227,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         activeOrgId,
         isLoading,
+        subscriptionStatus,
+        isSubscriptionValid,
         sendOtp,
         verifyOtp,
         createOrganization,
         setActiveOrgId,
         logout,
+        refreshUser,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
+
 
 export const useAuth = () => {
   const context = useContext(AuthContext);

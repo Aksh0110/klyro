@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LogOut, Dumbbell, ShieldCheck, Bell, Search, Plus, User } from 'lucide-react';
+import { LogOut, Dumbbell, ShieldCheck, Bell, Search, Plus, User, Download, Smartphone, X, Sparkles, Share } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { apiRequest } from '@/lib/api';
 import { ICustomer } from '@klyro/types';
@@ -13,6 +13,8 @@ export const TopHeader: React.FC = () => {
   const router = useRouter();
   const { user, activeOrgId, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [canInstallPwa, setCanInstallPwa] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
 
   // Global Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -26,6 +28,64 @@ export const TopHeader: React.FC = () => {
 
   const userRole = user?.roles.find((r) => r.organizationId === activeOrgId)?.role || 'MEMBER';
   const isManagerOrOwner = userRole === 'OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'MANAGER';
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true;
+
+    if (isStandalone) {
+      setCanInstallPwa(false);
+      return;
+    }
+
+    setCanInstallPwa(true);
+
+    const handlePromptReady = () => {
+      setCanInstallPwa(true);
+    };
+
+    const handleAppInstalled = () => {
+      setCanInstallPwa(false);
+      setShowInstallModal(false);
+      (window as any).deferredPwaPrompt = null;
+    };
+
+    (window as any).onPwaPromptReady = handlePromptReady;
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleHeaderInstallClick = async () => {
+    if (typeof window === 'undefined') return;
+    const promptEvent = (window as any).deferredPwaPrompt;
+
+    if (promptEvent) {
+      try {
+        await promptEvent.prompt();
+        const choice = await promptEvent.userChoice;
+        if (choice?.outcome === 'accepted') {
+          setCanInstallPwa(false);
+          (window as any).deferredPwaPrompt = null;
+        }
+        return;
+      } catch (err) {
+        console.error('PWA install prompt error:', err);
+      }
+    }
+
+    // Interactive in-app guide modal fallback
+    setShowInstallModal(true);
+  };
+
+
+
+
 
   useEffect(() => {
     if (!activeOrgId) return;
@@ -86,7 +146,8 @@ export const TopHeader: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-30 w-full bg-card/80 backdrop-blur-md border-b border-border px-4 py-2.5 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-30 w-full bg-card/80 backdrop-blur-md border-b border-border px-4 py-2.5 pt-[calc(0.625rem+env(safe-area-inset-top,0px))] flex items-center justify-between gap-4">
+
         {/* Mobile Brand / Tenant Badge */}
         <div className="flex items-center gap-3">
           <div className="md:hidden w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white">
@@ -160,6 +221,18 @@ export const TopHeader: React.FC = () => {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2.5">
+          {/* Mobile PWA Install Shortcut Button */}
+          {canInstallPwa && (
+            <button
+              onClick={handleHeaderInstallClick}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-purple-600/20 border border-purple-500/30 text-purple-300 hover:bg-purple-600/30 font-bold text-xs transition-all active:scale-95 shrink-0"
+              title="Install Klyro App Shortcut to Home Screen"
+            >
+              <Download className="w-3.5 h-3.5 text-purple-300" />
+              <span className="text-[11px] font-extrabold">Install App</span>
+            </button>
+          )}
+
           {/* + Quick Action Button */}
           {isManagerOrOwner && (
             <button
@@ -173,6 +246,7 @@ export const TopHeader: React.FC = () => {
               <span className="hidden sm:inline">Quick Action</span>
             </button>
           )}
+
 
           {/* Notifications (Member Portal only) */}
           {!isManagerOrOwner && (
@@ -208,6 +282,59 @@ export const TopHeader: React.FC = () => {
         onClose={() => setShowQuickAction(false)}
         initialTab={quickActionTab}
       />
+
+      {/* Sleek In-App PWA Installation Modal Guide */}
+      {showInstallModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-sm bg-[#051424] border border-[#273647] rounded-3xl p-6 shadow-2xl space-y-4 text-[#d4e4fa]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#8b5cf6] to-[#d0bcff] flex items-center justify-center text-[#051424] shadow-lg">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-[#d4e4fa]">Install Klyro App</h3>
+                  <p className="text-[11px] text-[#958ea0]">1-Tap Mobile Home Screen</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowInstallModal(false)}
+                className="p-1.5 rounded-xl text-[#958ea0] hover:text-[#d4e4fa] hover:bg-[#1c2b3c] transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 pt-2 text-xs">
+              <div className="p-3 rounded-2xl bg-[#0d1c2d] border border-[#273647] flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-[#d0bcff]/20 text-[#d0bcff] font-bold text-xs flex items-center justify-center shrink-0">
+                  1
+                </div>
+                <p className="text-[11px] text-[#d4e4fa] pt-0.5">
+                  Tap your mobile browser menu icon (<span className="font-bold text-[#d0bcff]">⋮</span> on Android Chrome, or <Share className="w-3.5 h-3.5 inline text-[#d0bcff]" /> on iOS Safari).
+                </p>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-[#0d1c2d] border border-[#273647] flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-[#4edea3]/20 text-[#4edea3] font-bold text-xs flex items-center justify-center shrink-0">
+                  2
+                </div>
+                <p className="text-[11px] text-[#d4e4fa] pt-0.5">
+                  Select <span className="font-bold text-[#4edea3]">&quot;Add to Home Screen&quot;</span> or <span className="font-bold text-[#4edea3]">&quot;Install App&quot;</span>.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowInstallModal(false)}
+              className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-[#8b5cf6] to-[#d0bcff] text-[#051424] font-extrabold text-xs shadow-lg shadow-purple-900/30 hover:brightness-110 active:scale-95 transition-all"
+            >
+              Got it!
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 };
+

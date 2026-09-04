@@ -25,7 +25,10 @@ import {
   Sparkles,
   RefreshCcw,
   MapPin,
+  Eye,
+  Loader2,
 } from 'lucide-react';
+
 
 export default function CustomerDetailPage() {
   const params = useParams();
@@ -56,6 +59,25 @@ export default function CustomerDetailPage() {
   const [renewError, setRenewError] = useState<string | null>(null);
 
   const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  // Invoice Detail Viewer State
+  const [viewingInvoice, setViewingInvoice] = useState<any | null>(null);
+  const [viewingInvoiceDetails, setViewingInvoiceDetails] = useState<any | null>(null);
+  const [loadingInvoiceDetails, setLoadingInvoiceDetails] = useState(false);
+
+  const openInvoiceView = async (inv: any) => {
+    setViewingInvoice(inv);
+    setLoadingInvoiceDetails(true);
+    try {
+      const data = await apiRequest<any>(`/invoices/${inv._id}`, {}, activeOrgId || undefined);
+      if (data) setViewingInvoiceDetails(data);
+    } catch {
+      console.error('Failed to load invoice details');
+    } finally {
+      setLoadingInvoiceDetails(false);
+    }
+  };
+
 
   const loadCustomerDetails = async () => {
     if (!activeOrgId || !customerId) return;
@@ -197,62 +219,8 @@ export default function CustomerDetailPage() {
     }
   };
 
-  // Modify Membership Handler
-  const [showModifyModal, setShowModifyModal] = useState(false);
-  const [modifyPlanId, setModifyPlanId] = useState('');
-  const [modifyStartDate, setModifyStartDate] = useState('');
-  const [modifyEndDate, setModifyEndDate] = useState('');
-  const [modifyPrice, setModifyPrice] = useState<number | ''>('');
-  const [modifyNotes, setModifyNotes] = useState('');
-  const [isModifying, setIsModifying] = useState(false);
-  const [modifyError, setModifyError] = useState<string | null>(null);
-
-  const openModifyModal = () => {
-    if (!activeMembership) return;
-    const planId = typeof activeMembership.membershipPlanId === 'object'
-      ? activeMembership.membershipPlanId._id
-      : activeMembership.membershipPlanId;
-    setModifyPlanId(planId || '');
-    setModifyStartDate(activeMembership.startDate ? new Date(activeMembership.startDate).toISOString().slice(0, 10) : '');
-    setModifyEndDate(activeMembership.endDate ? new Date(activeMembership.endDate).toISOString().slice(0, 10) : '');
-    setModifyPrice(activeMembership.price || 0);
-    setModifyNotes(activeMembership.notes || '');
-    setModifyError(null);
-    setShowModifyModal(true);
-  };
-
-  const handleModifySubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeOrgId || !activeMembership) return;
-    setIsModifying(true);
-    setModifyError(null);
-    try {
-      await apiRequest(
-        `/memberships/${activeMembership._id}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            membershipPlanId: modifyPlanId || undefined,
-            startDate: modifyStartDate || undefined,
-            endDate: modifyEndDate || undefined,
-            price: modifyPrice !== '' ? Number(modifyPrice) : undefined,
-            notes: modifyNotes || undefined,
-          }),
-        },
-        activeOrgId,
-      );
-      setSuccessToast('Membership modified successfully!');
-      setShowModifyModal(false);
-      loadCustomerDetails();
-      setTimeout(() => setSuccessToast(null), 3000);
-    } catch (err: any) {
-      setModifyError(err.message || 'Failed to modify membership');
-    } finally {
-      setIsModifying(false);
-    }
-  };
-
   // Contextual Refund Handler
+
   const [refundPaymentObj, setRefundPaymentObj] = useState<any | null>(null);
   const [refundAmount, setRefundAmount] = useState<string>('');
   const [refundNotes, setRefundNotes] = useState<string>('');
@@ -387,8 +355,8 @@ export default function CustomerDetailPage() {
               </button>
             ) : null}
 
-            {/* Priority 2: Renew if Expiring or Expired */}
-            {isExpiringSoon || isExpired || !activeMembership ? (
+            {/* Priority 2: Renew Membership (Enabled only 7 days prior to expiry or if expired/no plan) */}
+            {!activeMembership || daysRemaining <= 7 ? (
               <button
                 onClick={() => setShowRenewModal(true)}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95"
@@ -398,28 +366,20 @@ export default function CustomerDetailPage() {
               </button>
             ) : (
               <button
-                onClick={() => setShowRenewModal(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs border border-border transition-all"
+                disabled
+                title={`Renewal option available 7 days prior to expiry (Expires in ${daysRemaining} days)`}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary/50 text-muted-foreground font-semibold text-xs border border-border cursor-not-allowed opacity-60"
               >
-                <RotateCcw className="w-4 h-4 text-primary" />
-                <span>Renew</span>
-              </button>
-            )}
-
-            {activeMembership && (
-              <button
-                onClick={openModifyModal}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs border border-border transition-all"
-              >
-                <Calendar className="w-4 h-4 text-indigo-400" />
-                <span>Modify Membership</span>
+                <RotateCcw className="w-4 h-4" />
+                <span>Renew (Opens in {daysRemaining - 7}d)</span>
               </button>
             )}
           </div>
         </div>
 
+
         {/* OPERATIONAL KPI CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* Active Membership Status */}
           <div className="p-4 rounded-2xl bg-card border border-border">
             <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
@@ -483,22 +443,11 @@ export default function CustomerDetailPage() {
             <div className="text-xl font-extrabold text-foreground">₹{totalPaid.toLocaleString()}</div>
             <div className="text-xs text-muted-foreground mt-1">{payments.length} successful payment records</div>
           </div>
-
-          {/* Total Invoices */}
-          <div className="p-4 rounded-2xl bg-card border border-border">
-            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
-              Invoices
-            </span>
-            <div className="text-xl font-extrabold text-foreground">{invoices.length}</div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {invoices.filter((i) => i.status === 'OPEN').length} open invoices
-            </div>
-          </div>
         </div>
 
         {/* DETAIL TABS: Invoices, Payments, Membership History */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* INVOICES SECTION WITH INSTANT COLLECT BUTTON */}
+          {/* SINGLE UNIFIED INVOICES SECTION */}
           <div className="p-6 rounded-2xl bg-card border border-border space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
@@ -511,53 +460,62 @@ export default function CustomerDetailPage() {
             {invoices.length === 0 ? (
               <p className="text-xs text-muted-foreground py-4 text-center">No invoices issued for this member.</p>
             ) : (
-              <div className="space-y-3 max-h-72 overflow-y-auto">
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                 {invoices.map((inv) => {
                   const remaining = Math.max(0, inv.totalAmount - (inv.paidAmount || 0));
                   return (
                     <div
                       key={inv._id}
-                      className="p-3.5 rounded-xl bg-secondary/30 border border-border flex items-center justify-between text-xs"
+                      onClick={() => openInvoiceView(inv)}
+                      className="p-3.5 rounded-xl bg-secondary/30 border border-border hover:border-primary/40 hover:bg-secondary/60 transition-all cursor-pointer flex items-center justify-between text-xs group"
                     >
-                      <div>
+                      <div className="space-y-1">
                         <div className="font-bold text-foreground flex items-center gap-2">
-                          <span>{inv.invoiceNumber}</span>
+                          <span className="font-mono text-primary group-hover:underline">{inv.invoiceNumber}</span>
                           <span
                             className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
                               inv.status === 'PAID'
-                                ? 'bg-emerald-500/10 text-emerald-400'
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                                 : inv.status === 'PARTIALLY_PAID'
-                                ? 'bg-amber-500/10 text-amber-400'
-                                : 'bg-destructive/10 text-destructive'
+                                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                : 'bg-destructive/15 text-destructive border border-destructive/30'
                             }`}
                           >
                             {inv.status}
                           </span>
                         </div>
-                        <div className="text-muted-foreground text-[11px] mt-0.5">
+                        <div className="text-muted-foreground text-[11px]">
                           Total: ₹{inv.totalAmount.toLocaleString()} · Paid: ₹{(inv.paidAmount || 0).toLocaleString()}
                         </div>
                       </div>
 
-                      {remaining > 0 ? (
-                        <button
-                          onClick={() => {
-                            setCollectAmount(remaining);
-                            setShowCollectModal(true);
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold text-[11px] hover:bg-primary/90 transition-all"
-                        >
-                          Collect ₹{remaining}
-                        </button>
-                      ) : (
-                        <span className="text-emerald-400 font-semibold text-[11px]">Paid ✓</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {remaining > 0 ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCollectAmount(remaining);
+                              setShowCollectModal(true);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold text-[11px] hover:bg-primary/90 transition-all shadow-sm"
+                          >
+                            Collect ₹{remaining}
+                          </button>
+                        ) : (
+                          <span className="text-emerald-400 font-semibold text-[11px]">Paid ✓</span>
+                        )}
+
+                        <div className="p-1.5 rounded-lg bg-secondary text-muted-foreground group-hover:text-foreground group-hover:bg-primary/20 transition-all">
+                          <Eye className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
               </div>
             )}
           </div>
+
 
           {/* PAYMENTS HISTORY */}
           <div className="p-6 rounded-2xl bg-card border border-border space-y-4">
@@ -831,112 +789,8 @@ export default function CustomerDetailPage() {
         </div>
       )}
 
-      {/* MODAL 3: MODIFY MEMBERSHIP */}
-      {showModifyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-indigo-400" />
-                <h3 className="font-bold text-foreground text-sm">
-                  Modify Membership Details
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowModifyModal(false)}
-                className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {modifyError && (
-              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs">
-                {modifyError}
-              </div>
-            )}
-
-            <form onSubmit={handleModifySubmit} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Membership Plan</label>
-                <select
-                  value={modifyPlanId}
-                  onChange={(e) => setModifyPlanId(e.target.value)}
-                  className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
-                >
-                  {plans.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.name} — ₹{p.price.toLocaleString()} ({p.duration} {p.durationType.toLowerCase()})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={modifyStartDate}
-                    onChange={(e) => setModifyStartDate(e.target.value)}
-                    className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">End Date</label>
-                  <input
-                    type="date"
-                    value={modifyEndDate}
-                    onChange={(e) => setModifyEndDate(e.target.value)}
-                    className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-xs"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Price (₹)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={modifyPrice}
-                  onChange={(e) => setModifyPrice(e.target.value ? Number(e.target.value) : '')}
-                  className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Notes</label>
-                <input
-                  type="text"
-                  placeholder="Modification reason / notes"
-                  value={modifyNotes}
-                  onChange={(e) => setModifyNotes(e.target.value)}
-                  className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-border">
-                <button
-                  type="button"
-                  onClick={() => setShowModifyModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:bg-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isModifying}
-                  className="px-5 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 disabled:opacity-50"
-                >
-                  {isModifying ? 'Saving...' : 'Save Modifications'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* MODAL 4: PROCESS REFUND */}
+
       {refundPaymentObj && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-4">
@@ -1026,6 +880,135 @@ export default function CustomerDetailPage() {
           </div>
         </div>
       )}
+
+      {/* INVOICE DETAIL VIEW MODAL */}
+      {viewingInvoice && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h3 className="text-xl font-bold font-mono text-primary flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  <span>{viewingInvoice.invoiceNumber}</span>
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Issued: {new Date(viewingInvoice.issuedAt || viewingInvoice.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setViewingInvoice(null);
+                  setViewingInvoiceDetails(null);
+                }}
+                className="p-1.5 rounded-full bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {loadingInvoiceDetails ? (
+              <div className="py-12 flex justify-center">
+                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              </div>
+            ) : (
+              <div className="space-y-4 text-xs">
+                {/* Status & Member Info */}
+                <div className="p-3 bg-secondary/40 rounded-xl border border-border flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Member</span>
+                    <span className="font-bold text-sm text-foreground">
+                      {customer.firstName} {customer.lastName || ''}
+                    </span>
+                    <span className="text-xs font-mono text-muted-foreground block">{customer.customerCode}</span>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Status</span>
+                    <span
+                      className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                        viewingInvoice.status === 'PAID'
+                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                          : viewingInvoice.status === 'PARTIALLY_PAID'
+                          ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                          : 'bg-destructive/15 text-destructive border border-destructive/30'
+                      }`}
+                    >
+                      {viewingInvoice.status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Amount Breakdown */}
+                <div className="grid grid-cols-3 gap-3 p-3 bg-secondary/30 rounded-xl border border-border text-center">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase">Total Billed</p>
+                    <p className="font-bold font-mono text-foreground text-sm mt-0.5">₹{viewingInvoice.totalAmount}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase">Amount Paid</p>
+                    <p className="font-bold font-mono text-emerald-400 text-sm mt-0.5">₹{viewingInvoiceDetails?.totalPaid ?? viewingInvoice.paidAmount ?? 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase">Balance Due</p>
+                    <p className="font-bold font-mono text-amber-400 text-sm mt-0.5">
+                      ₹{viewingInvoiceDetails?.outstanding ?? Math.max(0, viewingInvoice.totalAmount - (viewingInvoice.paidAmount || 0))}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Payments Log */}
+                {viewingInvoiceDetails?.payments && viewingInvoiceDetails.payments.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Payment Records</span>
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                      {viewingInvoiceDetails.payments.map((p: any) => (
+                        <div key={p._id} className="p-2.5 bg-secondary/50 rounded-lg flex items-center justify-between text-xs">
+                          <div>
+                            <span className="font-bold text-foreground">₹{p.amount}</span>
+                            <span className="ml-2 font-mono text-muted-foreground">({p.method || 'Payment'})</span>
+                          </div>
+                          <span className="text-muted-foreground">{new Date(p.paidAt || p.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Modal Footer Actions */}
+                <div className="pt-3 border-t border-border flex items-center justify-between">
+                  <button
+                    onClick={() => {
+                      setViewingInvoice(null);
+                      setViewingInvoiceDetails(null);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground font-bold text-xs"
+                  >
+                    Close
+                  </button>
+
+                  {Math.max(0, viewingInvoice.totalAmount - (viewingInvoice.paidAmount || 0)) > 0 && (
+                    <button
+                      onClick={() => {
+                        const rem = Math.max(0, viewingInvoice.totalAmount - (viewingInvoice.paidAmount || 0));
+                        setViewingInvoice(null);
+                        setViewingInvoiceDetails(null);
+                        setCollectAmount(rem);
+                        setShowCollectModal(true);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 shadow-md flex items-center gap-1.5"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      Collect ₹{Math.max(0, viewingInvoice.totalAmount - (viewingInvoice.paidAmount || 0))}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
+

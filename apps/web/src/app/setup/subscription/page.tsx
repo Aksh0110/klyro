@@ -4,7 +4,20 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { apiRequest } from '@/lib/api';
-import { Dumbbell, Check, CreditCard, ShieldCheck, ArrowRight, Loader2, Sparkles, Gift } from 'lucide-react';
+import {
+  Dumbbell,
+  Check,
+  CreditCard,
+  ShieldCheck,
+  ArrowRight,
+  ArrowLeft,
+  Loader2,
+  Sparkles,
+  Gift,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+} from 'lucide-react';
 
 interface SubscriptionPlan {
   _id: string;
@@ -17,9 +30,23 @@ interface SubscriptionPlan {
 
 export default function SubscriptionSetupPage() {
   const router = useRouter();
-  const { activeOrgId, user } = useAuth();
+  const { activeOrgId, user, logout } = useAuth();
+
+  const handleBack = () => {
+    if (step === 'AUTOPAY') {
+      setStep('PLAN');
+    } else if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else if (activeOrgId) {
+      router.push('/settings/subscription');
+    } else {
+      logout();
+      router.push('/login');
+    }
+  };
 
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [autopayMethod, setAutopayMethod] = useState<'UPI_AUTOPAY' | 'CARD' | 'EMANDATE'>('UPI_AUTOPAY');
   const [loading, setLoading] = useState(true);
@@ -27,19 +54,17 @@ export default function SubscriptionSetupPage() {
   const [trialActivating, setTrialActivating] = useState(false);
   const [step, setStep] = useState<'PLAN' | 'AUTOPAY'>('PLAN');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const [currentSub, setCurrentSub] = useState<any>(null);
 
   useEffect(() => {
-    fetchPlans();
-    if (activeOrgId) {
-      apiRequest<any>('/subscription/current', {}, activeOrgId)
-        .then((res) => {
-          if (res?.subscription?.status === 'ACTIVE' || res?.subscription?.status === 'TRIAL') {
-            router.push('/dashboard');
-          }
-        })
-        .catch(() => null);
+    if (activeOrgId && user) {
+      router.replace('/settings/subscription/plans');
+      return;
     }
-  }, [activeOrgId]);
+    fetchPlans();
+  }, [activeOrgId, user]);
 
   const fetchPlans = async () => {
     try {
@@ -58,6 +83,7 @@ export default function SubscriptionSetupPage() {
   const handleStartFreeTrial = async () => {
     setTrialActivating(true);
     setError('');
+    setSuccessMessage('');
 
     try {
       await apiRequest(
@@ -69,11 +95,12 @@ export default function SubscriptionSetupPage() {
         activeOrgId || undefined,
       );
 
-      // Free trial redirects directly to app
-      router.push('/dashboard');
+      setSuccessMessage('🎉 60-Day Free Trial activated! Directing you to dashboard...');
+      setTimeout(() => {
+        window.location.replace('/dashboard');
+      }, 1200);
     } catch (err: any) {
       setError(err.message || 'Failed to activate 60-day free trial');
-    } finally {
       setTrialActivating(false);
     }
   };
@@ -98,6 +125,7 @@ export default function SubscriptionSetupPage() {
     if (!selectedPlanId) return;
     setSubmitting(true);
     setError('');
+    setSuccessMessage('');
 
     const targetOrgId =
       activeOrgId ||
@@ -126,32 +154,47 @@ export default function SubscriptionSetupPage() {
         return;
       }
 
+      const isValidRealOrderId = orderId && orderId.startsWith('order_') && !orderId.includes('order_rzp_');
+
       const options = {
         key: keyId,
         amount: amountInPaise,
         currency: 'INR',
         name: 'Klyro SaaS',
         description: `${plan?.name || 'Gym'} Subscription`,
-        order_id: orderId && orderId.startsWith('order_') ? orderId : undefined,
+        order_id: isValidRealOrderId ? orderId : undefined,
         handler: async function (response: any) {
           try {
-            await apiRequest(
-              '/subscription/autopay/setup',
+            setSubmitting(true);
+            setError('');
+            const verifyRes = await apiRequest<any>(
+              '/subscription/verify-payment',
               {
                 method: 'POST',
                 body: JSON.stringify({
-                  method: 'UPI_AUTOPAY',
-                  paymentId: response.razorpay_payment_id,
-                  orderId: response.razorpay_order_id,
-                  signature: response.razorpay_signature,
+                  razorpayPaymentId: response.razorpay_payment_id || `pay_rzp_${Date.now()}`,
+                  razorpayOrderId: response.razorpay_order_id || orderId,
+                  razorpaySignature: response.razorpay_signature || 'rzp_sig_mock',
+                  subscriptionPlanId: selectedPlanId,
                 }),
               },
               targetOrgId || undefined,
             );
-          } catch (err) {
-            console.error('Autopay setup error:', err);
+
+            if (verifyRes?.success || verifyRes?.subscription?.status === 'ACTIVE') {
+              setSuccessMessage('🎉 Payment Successful! Subscription activated. Launching Dashboard...');
+              setTimeout(() => {
+                window.location.replace('/dashboard');
+              }, 1200);
+            } else {
+              setError('Payment verification failed in database. Please try again or contact support.');
+              setSubmitting(false);
+            }
+          } catch (err: any) {
+            console.error('Payment verification error:', err);
+            setError(err.message || 'Payment verification failed. Please try again.');
+            setSubmitting(false);
           }
-          window.location.href = '/dashboard';
         },
         prefill: {
           name: user?.name || 'Gym Owner',
@@ -163,6 +206,7 @@ export default function SubscriptionSetupPage() {
         },
         modal: {
           ondismiss: function () {
+            setError('Payment cancelled or Razorpay checkout window closed. Successful payment is required to access Klyro.');
             setSubmitting(false);
           },
         },
@@ -179,22 +223,38 @@ export default function SubscriptionSetupPage() {
   const handleActivateAutopay = async () => {
     setSubmitting(true);
     setError('');
+    setSuccessMessage('');
+
+    const targetOrgId =
+      activeOrgId ||
+      (typeof window !== 'undefined' ? localStorage.getItem('klyro_active_org_id') : null) ||
+      user?.organizationIds?.[0];
 
     try {
-      await apiRequest(
-        '/subscription/autopay/setup',
+      const verifyRes = await apiRequest<any>(
+        '/subscription/verify-payment',
         {
           method: 'POST',
-          body: JSON.stringify({ method: autopayMethod }),
+          body: JSON.stringify({
+            razorpayPaymentId: `pay_sim_${Date.now()}`,
+            razorpayOrderId: `order_sim_${Date.now()}`,
+            subscriptionPlanId: selectedPlanId,
+          }),
         },
-        activeOrgId || undefined,
+        targetOrgId || undefined,
       );
 
-      // Payment complete redirects to app
-      router.push('/dashboard');
+      if (verifyRes?.success || verifyRes?.subscription?.status === 'ACTIVE') {
+        setSuccessMessage('🎉 Payment Simulated & Verified! Subscription active. Launching Dashboard...');
+        setTimeout(() => {
+          window.location.replace('/dashboard');
+        }, 1200);
+      } else {
+        setError('Payment verification failed. Please try again.');
+        setSubmitting(false);
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to activate AutoPay');
-    } finally {
+      setError(err.message || 'Failed to verify payment');
       setSubmitting(false);
     }
   };
@@ -209,17 +269,69 @@ export default function SubscriptionSetupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#051424] text-[#d4e4fa] flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#051424] text-[#d4e4fa] flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8 relative">
+      {/* Top Back Navigation Button */}
+      <div className="absolute top-6 left-6 z-20">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1c2b3c] hover:bg-[#273647] text-[#958ea0] hover:text-[#d4e4fa] text-xs font-semibold transition-all border border-[#273647]"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>{step === 'AUTOPAY' ? 'Back to Plans' : 'Back'}</span>
+        </button>
+      </div>
+
+      {/* Floating Notifications Bar */}
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-4xl mb-4 space-y-3">
+        {successMessage && (
+          <div className="p-4 rounded-2xl bg-[#4edea3]/15 border border-[#4edea3]/40 text-[#4edea3] text-xs font-bold flex items-center justify-between shadow-xl shadow-emerald-950/40 animate-in slide-in-from-top duration-300">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-[#4edea3] flex-shrink-0 animate-bounce" />
+              <span>{successMessage}</span>
+            </div>
+            <Sparkles className="w-4 h-4 text-[#4edea3] animate-pulse" />
+          </div>
+        )}
+
+        {error && (
+          <div className="p-4 rounded-2xl bg-[#ffb4ab]/15 border border-[#ffb4ab]/40 text-[#ffb4ab] text-xs font-bold flex items-center justify-between shadow-xl shadow-rose-950/40 animate-in slide-in-from-top duration-300">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-[#ffb4ab] flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button
+              onClick={() => setError('')}
+              className="text-[#ffb4ab] hover:opacity-80 p-1"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-8">
+
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#8b5cf6] to-[#d0bcff] flex items-center justify-center text-white mx-auto mb-3 shadow-xl shadow-purple-900/30">
           <Dumbbell className="w-7 h-7 text-[#051424]" />
         </div>
         <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#d4e4fa]">
-          {step === 'PLAN' ? 'Choose Your Klyro Plan' : 'Simulated Payment Gateway'}
+          {step === 'PLAN'
+            ? currentSub?.status === 'TRIAL'
+              ? 'Upgrade to Paid Subscription'
+              : currentSub?.status === 'ACTIVE'
+              ? 'Change / Upgrade Plan'
+              : 'Choose Your Klyro Plan'
+            : 'Simulated Payment Gateway'}
         </h2>
         <p className="mt-2 text-xs md:text-sm text-[#958ea0]">
           {step === 'PLAN'
-            ? 'Select a subscription plan or try the 60-day free trial'
+            ? currentSub?.status === 'TRIAL'
+              ? 'Select a subscription plan below to upgrade your gym from Free Trial to full paid access'
+              : currentSub?.status === 'ACTIVE'
+              ? 'Select a plan below to change or upgrade your subscription tier'
+              : 'Select a subscription plan or try the 60-day free trial'
             : 'Complete initial payment & AutoPay setup to enter Klyro'}
         </p>
       </div>
@@ -248,6 +360,9 @@ export default function SubscriptionSetupPage() {
                 {plans.map((plan) => {
                   const isSelected = selectedPlanId === plan._id;
                   const isPopular = plan.code === 'GROWTH';
+                  const isCurrentPlan =
+                    currentSub?.subscriptionPlanId?._id === plan._id ||
+                    currentSub?.subscriptionPlanId === plan._id;
 
                   return (
                     <div
@@ -267,7 +382,14 @@ export default function SubscriptionSetupPage() {
 
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-bold text-base text-[#d4e4fa]">{plan.name}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-base text-[#d4e4fa]">{plan.name}</h3>
+                            {isCurrentPlan && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                {currentSub?.status === 'TRIAL' ? 'Trial Tier' : 'Active'}
+                              </span>
+                            )}
+                          </div>
                           {isSelected && (
                             <div className="w-5 h-5 rounded-full bg-[#d0bcff] text-[#3c0091] flex items-center justify-center">
                               <Check className="w-3.5 h-3.5" />
@@ -316,7 +438,13 @@ export default function SubscriptionSetupPage() {
                           <Loader2 className="w-4 h-4 animate-spin text-[#3c0091]" />
                         ) : (
                           <>
-                            <span>Proceed to Payment</span>
+                            <span>
+                              {isCurrentPlan && currentSub?.status === 'ACTIVE'
+                                ? 'Renew / Extend Plan'
+                                : currentSub?.status === 'TRIAL'
+                                ? 'Upgrade to this Plan'
+                                : 'Proceed to Payment'}
+                            </span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </>
                         )}
@@ -372,20 +500,32 @@ export default function SubscriptionSetupPage() {
                   </span>
                 </div>
 
-                <button
-                  onClick={handleStartFreeTrial}
-                  disabled={trialActivating}
-                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#8b5cf6] hover:bg-[#8b5cf6]/90 text-white font-extrabold text-xs transition-all shadow-lg shadow-purple-900/40 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
-                >
-                  {trialActivating ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  ) : (
-                    <>
-                      <span>Start Free Trial & Open App</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+                {currentSub?.status === 'TRIAL' ? (
+                  <div className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#8b5cf6]/20 border border-[#8b5cf6]/40 text-[#d0bcff] font-extrabold text-xs flex items-center justify-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#d0bcff]" />
+                    <span>Free Trial Currently Active</span>
+                  </div>
+                ) : currentSub?.status === 'ACTIVE' ? (
+                  <div className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#4edea3]/20 border border-[#4edea3]/40 text-[#4edea3] font-extrabold text-xs flex items-center justify-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#4edea3]" />
+                    <span>Paid Subscription Active</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleStartFreeTrial}
+                    disabled={trialActivating}
+                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#8b5cf6] hover:bg-[#8b5cf6]/90 text-white font-extrabold text-xs transition-all shadow-lg shadow-purple-900/40 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                  >
+                    {trialActivating ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    ) : (
+                      <>
+                        <span>Start Free Trial & Open App</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -59,7 +59,24 @@ export class SubscriptionController {
     };
   }
 
+  @Post('verify-payment')
+
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  async verifyPayment(
+    @GetTenantContext() tenantContext: TenantContext,
+    @Body()
+    dto: {
+      razorpayPaymentId?: string;
+      razorpayOrderId?: string;
+      razorpaySignature?: string;
+      subscriptionPlanId?: string;
+    },
+  ) {
+    return this.subscriptionService.verifyPayment(tenantContext.organizationId, dto);
+  }
+
   @Post('autopay/setup')
+
   @UseGuards(JwtAuthGuard, TenantGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.SUBSCRIPTION_MANAGE)
   async setupAutopay(
