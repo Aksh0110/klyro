@@ -244,6 +244,7 @@ export class SubscriptionService {
     return {
       subscription,
       payment,
+      orderId: providerRes.providerSubscriptionId,
       checkoutUrl: providerRes.checkoutUrl,
       isPlanChange: Boolean(isExistingActiveOrTrial),
     };

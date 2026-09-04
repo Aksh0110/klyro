@@ -55,6 +55,10 @@ export class SubscriptionController {
     const res = await this.subscriptionService.checkout(tenantContext.organizationId, dto);
     return {
       ...res,
+      orderId:
+        (res as any).orderId ||
+        res.payment?.providerOrderId ||
+        res.subscription?.pendingProviderSubscriptionId,
       keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_TSlH8WnGPPBsO7',
     };
   }
