@@ -45,6 +45,12 @@ export class Subscription {
   @Prop()
   trialEndsAt?: Date;
 
+  @Prop({ type: Types.ObjectId, ref: 'SubscriptionPlan' })
+  pendingPlanId?: Types.ObjectId;
+
+  @Prop()
+  pendingProviderSubscriptionId?: string;
+
   @Prop()
   gracePeriodEndsAt?: Date;
 }

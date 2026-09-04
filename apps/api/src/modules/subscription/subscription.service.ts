@@ -178,11 +178,25 @@ export class SubscriptionService {
 
     let subscription = await this.subModel.findOne({ organizationId: orgObjectId }).exec();
 
-    if (subscription) {
+    const isExistingActiveOrTrial =
+      subscription &&
+      (subscription.status === SUBSCRIPTION_STATUS.ACTIVE || subscription.status === SUBSCRIPTION_STATUS.TRIAL);
+
+    if (isExistingActiveOrTrial) {
+      // SAFE FALLBACK PLAN CHANGE:
+      // Gym owner already has an active/trial subscription.
+      // Do NOT demote subscription status or mutate current active plan!
+      // If checkout is cancelled or payment fails, user remains safely on their current plan.
+      subscription.pendingPlanId = plan._id;
+      subscription.pendingProviderSubscriptionId = providerRes.providerSubscriptionId;
+      await subscription.save();
+    } else if (subscription) {
       subscription.subscriptionPlanId = plan._id;
       subscription.status = SUBSCRIPTION_STATUS.PENDING_PAYMENT;
       subscription.amount = plan.monthlyPrice;
       subscription.providerSubscriptionId = providerRes.providerSubscriptionId;
+      subscription.pendingPlanId = undefined;
+      subscription.pendingProviderSubscriptionId = undefined;
       subscription.currentPeriodStart = now;
       subscription.currentPeriodEnd = periodEnd;
       await subscription.save();
@@ -217,16 +231,21 @@ export class SubscriptionService {
       method: this.provider.name,
       provider: this.provider.name,
       providerPaymentId: paymentRes.providerPaymentId,
-      providerOrderId: paymentRes.providerOrderId,
+      providerOrderId: paymentRes.providerOrderId || providerRes.providerSubscriptionId,
+      metadata: {
+        targetPlanId: plan._id.toString(),
+        targetPlanCode: plan.code,
+        targetPlanName: plan.name,
+        isPlanChange: Boolean(isExistingActiveOrTrial),
+        previousPlanId: subscription.subscriptionPlanId?.toString(),
+      },
     });
-
-    // Note: Subscription status MUST remain PENDING_PAYMENT here.
-    // It will ONLY transition to ACTIVE once payment is confirmed via setupAutopay or Webhook.
 
     return {
       subscription,
       payment,
       checkoutUrl: providerRes.checkoutUrl,
+      isPlanChange: Boolean(isExistingActiveOrTrial),
     };
   }
 
@@ -249,8 +268,10 @@ export class SubscriptionService {
 
     let subscription = await this.subModel.findOne({ organizationId: orgObjectId }).exec();
 
-    if (!subscription && dto.subscriptionPlanId) {
-      const plan = await this.planModel.findById(dto.subscriptionPlanId).exec();
+    const targetPlanId = dto.subscriptionPlanId || subscription?.pendingPlanId?.toString();
+
+    if (!subscription && targetPlanId) {
+      const plan = await this.planModel.findById(targetPlanId).exec();
       const now = new Date();
       const periodEnd = new Date(now);
       periodEnd.setDate(periodEnd.getDate() + 30);
@@ -278,18 +299,24 @@ export class SubscriptionService {
     const periodEnd = new Date(now);
     periodEnd.setDate(periodEnd.getDate() + 30);
 
-    // Explicitly update Subscription plan and status to ACTIVE in MongoDB
-    if (dto.subscriptionPlanId && Types.ObjectId.isValid(dto.subscriptionPlanId)) {
-      subscription.subscriptionPlanId = new Types.ObjectId(dto.subscriptionPlanId) as any;
-      const newPlan = await this.planModel.findById(dto.subscriptionPlanId).exec();
+    // Apply immediate activation of new plan
+    if (targetPlanId && Types.ObjectId.isValid(targetPlanId)) {
+      subscription.subscriptionPlanId = new Types.ObjectId(targetPlanId) as any;
+      const newPlan = await this.planModel.findById(targetPlanId).exec();
       if (newPlan) {
         subscription.amount = newPlan.monthlyPrice;
       }
     }
     subscription.status = SUBSCRIPTION_STATUS.ACTIVE;
     subscription.startedAt = subscription.startedAt || now;
+    // New plan starts immediately today with fresh 30-day period
     subscription.currentPeriodStart = now;
     subscription.currentPeriodEnd = periodEnd;
+    subscription.pendingPlanId = undefined;
+    subscription.pendingProviderSubscriptionId = undefined;
+    subscription.trialEndsAt = undefined;
+    subscription.gracePeriodEndsAt = undefined;
+    subscription.cancelAtPeriodEnd = false;
     await subscription.save();
 
     // Create & Record verified Payment transaction in SubscriptionPayment collection
@@ -314,17 +341,72 @@ export class SubscriptionService {
     } else {
       paymentRecord.status = SUBSCRIPTION_PAYMENT_STATUS.SUCCESS;
       paymentRecord.paidAt = now;
+      paymentRecord.amount = subscription.amount || paymentRecord.amount;
       await paymentRecord.save();
     }
 
     this.logger.log(
-      `[PAYMENT VERIFIED] Org ${organizationId} subscription activated. PaymentId: ${paymentId}`,
+      `[PAYMENT VERIFIED - PLAN ACTIVE IMMEDIATELY] Org ${organizationId} subscription activated. PaymentId: ${paymentId}`,
     );
 
     return {
       success: true,
       subscription,
       payment: paymentRecord,
+    };
+  }
+
+  async cancelCheckout(
+    organizationId: string,
+    dto?: { orderId?: string; reason?: string },
+  ) {
+    const orgObjectId = Types.ObjectId.isValid(organizationId)
+      ? new Types.ObjectId(organizationId)
+      : null;
+
+    if (!orgObjectId) {
+      throw new BadRequestException('Invalid organization context.');
+    }
+
+    const subscription = await this.subModel.findOne({ organizationId: orgObjectId }).exec();
+    if (!subscription) {
+      throw new NotFoundException('Subscription not found.');
+    }
+
+    // Reset pending plan fields to guarantee existing plan remains completely intact
+    subscription.pendingPlanId = undefined;
+    subscription.pendingProviderSubscriptionId = undefined;
+    await subscription.save();
+
+    // Mark matching pending payment as FAILED
+    const orderId = dto?.orderId;
+    const query: any = {
+      organizationId: orgObjectId,
+      status: SUBSCRIPTION_PAYMENT_STATUS.PENDING,
+    };
+    if (orderId) {
+      query.providerOrderId = orderId;
+    }
+
+    const pendingPayment = await this.subPaymentModel.findOne(query).sort({ createdAt: -1 }).exec();
+    if (pendingPayment) {
+      pendingPayment.status = SUBSCRIPTION_PAYMENT_STATUS.FAILED;
+      pendingPayment.metadata = {
+        ...(pendingPayment.metadata || {}),
+        cancelledAt: new Date(),
+        cancelReason: dto?.reason || 'USER_DISMISSED_OR_FAILED_CHECKOUT',
+      };
+      await pendingPayment.save();
+    }
+
+    this.logger.log(
+      `[CHECKOUT CANCELLED] Org ${organizationId} checkout cancelled. Existing plan fallback confirmed.`,
+    );
+
+    return {
+      success: true,
+      message: 'Plan change cancelled. Reverted to existing plan.',
+      subscription,
     };
   }
 
@@ -372,10 +454,23 @@ export class SubscriptionService {
     const periodEnd = new Date(now);
     periodEnd.setDate(periodEnd.getDate() + 30);
 
+    if (subscription.pendingPlanId) {
+      subscription.subscriptionPlanId = subscription.pendingPlanId;
+      const targetPlan = await this.planModel.findById(subscription.pendingPlanId).exec();
+      if (targetPlan) {
+        subscription.amount = targetPlan.monthlyPrice;
+      }
+      subscription.pendingPlanId = undefined;
+      subscription.pendingProviderSubscriptionId = undefined;
+    }
+
     subscription.status = SUBSCRIPTION_STATUS.ACTIVE;
     subscription.startedAt = subscription.startedAt || now;
     subscription.currentPeriodStart = now;
     subscription.currentPeriodEnd = periodEnd;
+    subscription.trialEndsAt = undefined;
+    subscription.gracePeriodEndsAt = undefined;
+    subscription.cancelAtPeriodEnd = false;
     await subscription.save();
 
     if ((dto as any).paymentId) {
@@ -428,19 +523,41 @@ export class SubscriptionService {
     const providerSubId = payload?.payload?.subscription?.entity?.id || payload?.payload?.subscription?.id;
 
     if (providerSubId) {
-      const sub = await this.subModel.findOne({ providerSubscriptionId: providerSubId }).exec();
+      const sub = await this.subModel.findOne({
+        $or: [
+          { providerSubscriptionId: providerSubId },
+          { pendingProviderSubscriptionId: providerSubId },
+        ],
+      }).exec();
+
       if (sub) {
         if (event === 'subscription.charged' || event === 'subscription.authenticated' || payload?.code === 'PAYMENT_SUCCESS') {
+          if (sub.pendingPlanId) {
+            sub.subscriptionPlanId = sub.pendingPlanId;
+            const targetPlan = await this.planModel.findById(sub.pendingPlanId).exec();
+            if (targetPlan) {
+              sub.amount = targetPlan.monthlyPrice;
+            }
+            sub.pendingPlanId = undefined;
+            sub.pendingProviderSubscriptionId = undefined;
+          }
           sub.status = SUBSCRIPTION_STATUS.ACTIVE;
-          const nextStart = new Date(sub.currentPeriodEnd);
-          const nextEnd = new Date(nextStart);
-          nextEnd.setMonth(nextEnd.getMonth() + 1);
-          sub.currentPeriodStart = nextStart;
-          sub.currentPeriodEnd = nextEnd;
+          const now = new Date();
+          const periodEnd = new Date(now);
+          periodEnd.setDate(periodEnd.getDate() + 30);
+          sub.currentPeriodStart = now;
+          sub.currentPeriodEnd = periodEnd;
+          sub.trialEndsAt = undefined;
+          sub.gracePeriodEndsAt = undefined;
           await sub.save();
         } else if (event === 'subscription.halted' || event === 'payment.failed') {
-          sub.status = SUBSCRIPTION_STATUS.PAST_DUE;
-          sub.gracePeriodEndsAt = new Date(Date.now() + DEFAULT_GRACE_PERIOD_DAYS * 86400000);
+          // If a pending plan change payment failed, clear pending fields so existing plan is untouched
+          sub.pendingPlanId = undefined;
+          sub.pendingProviderSubscriptionId = undefined;
+          if (sub.status !== SUBSCRIPTION_STATUS.ACTIVE && sub.status !== SUBSCRIPTION_STATUS.TRIAL) {
+            sub.status = SUBSCRIPTION_STATUS.PAST_DUE;
+            sub.gracePeriodEndsAt = new Date(Date.now() + DEFAULT_GRACE_PERIOD_DAYS * 86400000);
+          }
           await sub.save();
         }
       }
