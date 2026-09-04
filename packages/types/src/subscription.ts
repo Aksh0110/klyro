@@ -40,6 +40,9 @@ export interface ISubscription {
   providerSubscriptionId?: string;
   currency: string;
   amount: number;
+  trialEndsAt?: Date | string;
+  pendingPlanId?: string | ISubscriptionPlan;
+  pendingProviderSubscriptionId?: string;
   gracePeriodEndsAt?: Date | string;
   createdAt: Date | string;
   updatedAt: Date | string;

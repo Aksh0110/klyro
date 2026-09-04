@@ -20,6 +20,7 @@ import {
   CreditCard,
   Zap,
 } from 'lucide-react';
+import { PlanChangeConfirmModal } from '@/components/subscription/PlanChangeConfirmModal';
 
 interface SubscriptionPlan {
   _id: string;
@@ -46,6 +47,10 @@ export default function SubscriptionPlansPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
+
+  // Plan Change Confirmation Modal State
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [pendingTargetPlan, setPendingTargetPlan] = useState<SubscriptionPlan | null>(null);
 
   useEffect(() => {
     loadData();
@@ -104,8 +109,22 @@ export default function SubscriptionPlansPage() {
     });
   };
 
+  const handlePlanSelection = (plan: SubscriptionPlan) => {
+    setSelectedPlanId(plan._id);
+    const activePlanId = currentSub?.subscriptionPlanId?._id || currentSub?.subscriptionPlanId;
+    const hasExistingSub = currentSub?.status === 'ACTIVE' || currentSub?.status === 'TRIAL';
+    const isChangingPlan = hasExistingSub && activePlanId && activePlanId !== plan._id;
+
+    if (isChangingPlan) {
+      setPendingTargetPlan(plan);
+      setConfirmModalOpen(true);
+    } else {
+      handleCheckout(plan);
+    }
+  };
+
   const handleCheckout = async (planToBuy?: SubscriptionPlan) => {
-    const targetPlan = planToBuy || plans.find((p) => p._id === selectedPlanId);
+    const targetPlan = planToBuy || pendingTargetPlan || plans.find((p) => p._id === selectedPlanId);
     if (!targetPlan) {
       showToast('error', 'Select a Plan', 'Please choose a subscription plan first.');
       return;
@@ -124,6 +143,7 @@ export default function SubscriptionPlansPage() {
       (currentSub?.subscriptionPlanId?._id === targetPlan._id || currentSub?.subscriptionPlanId === targetPlan._id);
 
     const actionText = isRenewal ? 'renewed' : 'upgraded';
+    const currentPlanName = currentSub?.subscriptionPlanId?.name || 'Current';
 
     try {
       const res = await apiRequest<any>(
@@ -142,6 +162,7 @@ export default function SubscriptionPlansPage() {
       const loaded = await loadRazorpayScript();
       if (!loaded) {
         // Direct simulation fallback if script can't be loaded
+        setConfirmModalOpen(false);
         await executeVerification(
           {
             razorpayPaymentId: `pay_sim_${Date.now()}`,
@@ -161,9 +182,10 @@ export default function SubscriptionPlansPage() {
         amount: amountInPaise,
         currency: 'INR',
         name: 'Klyro SaaS',
-        description: `${targetPlan.name} Plan - Gym SaaS`,
+        description: `${targetPlan.name} Plan - Immediate Switch`,
         order_id: isValidRealOrderId ? orderId : undefined,
         handler: async function (response: any) {
+          setConfirmModalOpen(false);
           await executeVerification(
             {
               razorpayPaymentId: response.razorpay_payment_id || `pay_rzp_${Date.now()}`,
@@ -184,13 +206,27 @@ export default function SubscriptionPlansPage() {
           color: '#8b5cf6',
         },
         modal: {
-          ondismiss: function () {
+          ondismiss: async function () {
+            // Revert/cleanup pending change via cancel-checkout endpoint
+            try {
+              await apiRequest(
+                '/subscription/cancel-checkout',
+                {
+                  method: 'POST',
+                  body: JSON.stringify({ orderId, reason: 'PAYMENT_WINDOW_CLOSED' }),
+                },
+                targetOrgId || undefined,
+              );
+            } catch {
+              // silent
+            }
             showToast(
               'error',
-              'Payment Cancelled',
-              'Razorpay checkout window was closed before completing payment. No charges were made.',
+              'Payment Incomplete — Existing Plan Preserved',
+              `Payment was not completed. You remain on your existing ${currentPlanName} Plan with zero interruption.`,
             );
             setSubmitting(false);
+            setConfirmModalOpen(false);
           },
         },
       };
@@ -200,6 +236,7 @@ export default function SubscriptionPlansPage() {
     } catch (err: any) {
       showToast('error', 'Checkout Error', err.message || 'Failed to initiate checkout. Please try again.');
       setSubmitting(false);
+      setConfirmModalOpen(false);
     }
   };
 
@@ -226,15 +263,15 @@ export default function SubscriptionPlansPage() {
       if (verifyRes?.success || verifyRes?.subscription?.status === 'ACTIVE') {
         showToast(
           'success',
-          `Plan ${actionText === 'renewed' ? 'Renewed' : 'Upgraded'} Successfully! 🎉`,
-          `Your subscription to ${targetPlan.name} Plan is now active. Directing you back to billing...`,
+          `Plan Activated Immediately! 🎉`,
+          `Your subscription to ${targetPlan.name} Plan is now active with immediate benefits. Directing to billing...`,
         );
 
         setTimeout(() => {
           router.push(`/settings/subscription?toast=success&plan=${encodeURIComponent(targetPlan.name)}&action=${actionText}`);
         }, 1500);
       } else {
-        showToast('error', 'Verification Failed', 'Payment verification was not confirmed. Please contact support.');
+        showToast('error', 'Verification Failed', 'Payment verification was not confirmed. Your previous plan remains active.');
         setSubmitting(false);
       }
     } catch (err: any) {
@@ -448,8 +485,7 @@ export default function SubscriptionPlansPage() {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSelectedPlanId(plan._id);
-                    handleCheckout(plan);
+                    handlePlanSelection(plan);
                   }}
                   disabled={submitting}
                   className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 ${
@@ -490,6 +526,30 @@ export default function SubscriptionPlansPage() {
             <span className="font-semibold text-foreground">UPI AutoPay • Credit/Debit Cards • NetBanking</span>
           </div>
         </div>
+
+        {/* Pre-Change Discontinuation & Immediate Benefits Confirmation Prompt */}
+        <PlanChangeConfirmModal
+          isOpen={confirmModalOpen}
+          onClose={() => {
+            if (!submitting) setConfirmModalOpen(false);
+          }}
+          onConfirm={() => {
+            if (pendingTargetPlan) {
+              handleCheckout(pendingTargetPlan);
+            }
+          }}
+          currentPlan={
+            plans.find(
+              (p) =>
+                p._id === currentSub?.subscriptionPlanId?._id ||
+                p._id === currentSub?.subscriptionPlanId,
+            ) ||
+            currentSub?.subscriptionPlanId ||
+            null
+          }
+          targetPlan={pendingTargetPlan}
+          loading={submitting}
+        />
       </div>
     </AppShell>
   );

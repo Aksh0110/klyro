@@ -86,6 +86,16 @@ export class SubscriptionController {
     return this.subscriptionService.setupAutopay(tenantContext.organizationId, dto);
   }
 
+  @Post('cancel-checkout')
+  @UseGuards(JwtAuthGuard, TenantGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.SUBSCRIPTION_MANAGE)
+  async cancelCheckout(
+    @GetTenantContext() tenantContext: TenantContext,
+    @Body() dto?: { orderId?: string; reason?: string },
+  ) {
+    return this.subscriptionService.cancelCheckout(tenantContext.organizationId, dto);
+  }
+
   @Post('cancel')
   @UseGuards(JwtAuthGuard, TenantGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.SUBSCRIPTION_MANAGE)

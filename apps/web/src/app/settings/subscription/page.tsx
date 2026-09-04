@@ -24,6 +24,7 @@ import {
   Check,
   ArrowRight,
 } from 'lucide-react';
+import { PlanChangeConfirmModal } from '@/components/subscription/PlanChangeConfirmModal';
 
 function SubscriptionSettingsContent() {
   const router = useRouter();
@@ -43,6 +44,10 @@ function SubscriptionSettingsContent() {
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [upgrading, setUpgrading] = useState(false);
   const [modalToast, setModalToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Pre-change confirmation modal state
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [pendingTargetPlan, setPendingTargetPlan] = useState<any>(null);
 
   useEffect(() => {
     const toastParam = searchParams.get('toast');
@@ -101,8 +106,22 @@ function SubscriptionSettingsContent() {
     });
   };
 
+  const handleSelectPlanToUpgrade = (plan: any) => {
+    setSelectedPlanId(plan._id);
+    const activePlanId = data?.subscription?.subscriptionPlanId?._id || data?.subscription?.subscriptionPlanId;
+    const hasExistingSub = data?.subscription?.status === 'ACTIVE' || data?.subscription?.status === 'TRIAL';
+    const isChangingPlan = hasExistingSub && activePlanId && activePlanId !== plan._id;
+
+    if (isChangingPlan) {
+      setPendingTargetPlan(plan);
+      setConfirmModalOpen(true);
+    } else {
+      handleProceedCheckout(plan);
+    }
+  };
+
   const handleProceedCheckout = async (targetPlan?: any) => {
-    const planToBuy = targetPlan || plans.find((p) => p._id === selectedPlanId);
+    const planToBuy = targetPlan || pendingTargetPlan || plans.find((p) => p._id === selectedPlanId);
     if (!planToBuy) return;
 
     setUpgrading(true);
@@ -118,6 +137,7 @@ function SubscriptionSettingsContent() {
       (data?.subscription?.subscriptionPlanId?._id === planToBuy._id || data?.subscription?.subscriptionPlanId === planToBuy._id);
 
     const actionWord = isRenewal ? 'renewed' : 'upgraded';
+    const currentPlanName = data?.subscription?.subscriptionPlanId?.name || 'Current';
 
     try {
       const res = await apiRequest<any>(
@@ -135,6 +155,7 @@ function SubscriptionSettingsContent() {
 
       const loaded = await loadRazorpayScript();
       if (!loaded) {
+        setConfirmModalOpen(false);
         await executeVerification(
           {
             razorpayPaymentId: `pay_sim_${Date.now()}`,
@@ -154,9 +175,10 @@ function SubscriptionSettingsContent() {
         amount: amountInPaise,
         currency: 'INR',
         name: 'Klyro SaaS',
-        description: `${planToBuy.name} Plan Upgrade`,
+        description: `${planToBuy.name} Plan - Immediate Switch`,
         order_id: isValidRealOrderId ? orderId : undefined,
         handler: async function (response: any) {
+          setConfirmModalOpen(false);
           await executeVerification(
             {
               razorpayPaymentId: response.razorpay_payment_id || `pay_rzp_${Date.now()}`,
@@ -177,12 +199,26 @@ function SubscriptionSettingsContent() {
           color: '#8b5cf6',
         },
         modal: {
-          ondismiss: function () {
+          ondismiss: async function () {
+            // Revert pending checkout in backend
+            try {
+              await apiRequest(
+                '/subscription/cancel-checkout',
+                {
+                  method: 'POST',
+                  body: JSON.stringify({ orderId, reason: 'PAYMENT_WINDOW_CLOSED' }),
+                },
+                targetOrgId || undefined,
+              );
+            } catch {
+              // silent
+            }
             setModalToast({
               type: 'error',
-              message: 'Checkout window was closed before completing payment.',
+              message: `Payment incomplete. You remain securely on your existing ${currentPlanName} Plan.`,
             });
             setUpgrading(false);
+            setConfirmModalOpen(false);
           },
         },
       };
@@ -195,6 +231,7 @@ function SubscriptionSettingsContent() {
         message: err.message || 'Failed to initiate checkout. Please try again.',
       });
       setUpgrading(false);
+      setConfirmModalOpen(false);
     }
   };
 
@@ -215,15 +252,16 @@ function SubscriptionSettingsContent() {
       );
 
       if (verifyRes?.success || verifyRes?.subscription?.status === 'ACTIVE') {
-        const successMsg = `🎉 Plan ${actionWord === 'renewed' ? 'Renewed' : 'Upgraded'} Successfully to ${planToBuy.name} Plan!`;
+        const successMsg = `🎉 Plan Activated Immediately! You are now on ${planToBuy.name} Plan with immediate benefits.`;
         setToastMessage(successMsg);
         setUpgrading(false);
         setShowUpgradeModal(false);
+        setConfirmModalOpen(false);
         fetchSubscriptionData();
       } else {
         setModalToast({
           type: 'error',
-          message: 'Payment verification could not be confirmed.',
+          message: 'Payment verification could not be confirmed. Existing plan remains intact.',
         });
         setUpgrading(false);
       }
@@ -669,8 +707,7 @@ function SubscriptionSettingsContent() {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedPlanId(p._id);
-                          handleProceedCheckout(p);
+                          handleSelectPlanToUpgrade(p);
                         }}
                         disabled={upgrading}
                         className={`w-full py-2 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 ${
@@ -717,6 +754,30 @@ function SubscriptionSettingsContent() {
             </div>
           </div>
         )}
+
+        {/* Pre-Change Discontinuation & Immediate Benefits Confirmation Prompt */}
+        <PlanChangeConfirmModal
+          isOpen={confirmModalOpen}
+          onClose={() => {
+            if (!upgrading) setConfirmModalOpen(false);
+          }}
+          onConfirm={() => {
+            if (pendingTargetPlan) {
+              handleProceedCheckout(pendingTargetPlan);
+            }
+          }}
+          currentPlan={
+            plans.find(
+              (p) =>
+                p._id === data?.subscription?.subscriptionPlanId?._id ||
+                p._id === data?.subscription?.subscriptionPlanId,
+            ) ||
+            data?.subscription?.subscriptionPlanId ||
+            null
+          }
+          targetPlan={pendingTargetPlan}
+          loading={upgrading}
+        />
       </div>
     </AppShell>
   );
