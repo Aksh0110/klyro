@@ -10,7 +10,7 @@ import { Search, Filter, CheckCircle2, Clock, AlertCircle, Loader2, CreditCard, 
 
 export default function InvoicesPage() {
   const router = useRouter();
-  const { activeOrgId } = useAuth();
+  const { activeOrgId, activeBranchId } = useAuth();
 
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,7 +24,12 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     if (activeOrgId) fetchInvoices();
-  }, [activeOrgId, statusFilter]);
+    const handleBranchChanged = () => {
+      if (activeOrgId) fetchInvoices();
+    };
+    window.addEventListener('klyro_branch_changed', handleBranchChanged);
+    return () => window.removeEventListener('klyro_branch_changed', handleBranchChanged);
+  }, [activeOrgId, activeBranchId, statusFilter]);
 
   const fetchInvoices = async () => {
     try {

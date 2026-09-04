@@ -20,6 +20,8 @@ import {
   Users,
   CheckCircle2,
   CalendarCheck,
+  Calendar,
+  XCircle,
   X,
   Check,
   ArrowRight,
@@ -349,8 +351,129 @@ function SubscriptionSettingsContent() {
     ? Math.max(0, Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
     : 0;
   const formattedDueDate = dueDate
-    ? dueDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    ? dueDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })
     : 'N/A';
+
+  // Format full timestamp in Indian Standard Time (IST)
+  const formatTimestampIST = (dateString?: string | Date) => {
+    if (!dateString) return '—';
+    try {
+      const d = new Date(dateString);
+      if (isNaN(d.getTime())) return '—';
+      return (
+        d.toLocaleString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        }) + ' IST'
+      );
+    } catch {
+      return '—';
+    }
+  };
+
+  const formatDateIST = (dateString?: string | Date) => {
+    if (!dateString) return '—';
+    try {
+      const d = new Date(dateString);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return '—';
+    }
+  };
+
+  const getPaymentDetails = (p: any) => {
+    const meta = p.metadata || {};
+    let planName =
+      meta.targetPlanName ||
+      meta.planName ||
+      plans.find((pl) => pl.monthlyPrice === p.amount)?.name;
+
+    if (!planName && data?.subscription?.subscriptionPlanId) {
+      const currentPlan = data.subscription.subscriptionPlanId;
+      if (typeof currentPlan === 'object' && currentPlan.monthlyPrice === p.amount) {
+        planName = currentPlan.name;
+      }
+    }
+
+    if (!planName) {
+      planName =
+        p.amount === 1199
+          ? 'Pro'
+          : p.amount === 799
+          ? 'Growth'
+          : p.amount === 499
+          ? 'Starter'
+          : 'Subscription';
+    }
+
+    const matchedPlan = plans.find(
+      (pl) => pl.monthlyPrice === p.amount || pl.name?.toLowerCase() === planName?.toLowerCase(),
+    );
+    const memberLimit = meta.memberLimit || matchedPlan?.memberLimit;
+
+    // Calculate renewal/expiry date for successful transactions
+    let nextRenewalDate: string | null = null;
+    if (p.status === 'SUCCESS') {
+      if (meta.billingPeriodEnd) {
+        nextRenewalDate = formatDateIST(meta.billingPeriodEnd);
+      } else {
+        const base = new Date(p.paidAt || p.createdAt);
+        const renewalDate = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000);
+        nextRenewalDate = formatDateIST(renewalDate);
+      }
+    }
+
+    const actionBadge = meta.isPlanChange
+      ? 'Plan Upgrade'
+      : meta.isRenewal
+      ? 'Plan Renewal'
+      : 'Subscription';
+
+    return {
+      planTitle: `${planName} Plan`,
+      memberLimitText: memberLimit ? `Up to ${memberLimit.toLocaleString()} members` : null,
+      nextRenewalDate,
+      actionBadge,
+    };
+  };
+
+  const renderStatusBadge = (status: string) => {
+    switch (status) {
+      case 'SUCCESS':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+            <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+            SUCCESS
+          </span>
+        );
+      case 'PENDING':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+            <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+            PENDING
+          </span>
+        );
+      case 'FAILED':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+            <XCircle className="w-3 h-3 text-rose-400 shrink-0" />
+            {status || 'FAILED'}
+          </span>
+        );
+    }
+  };
 
   return (
     <AppShell>
@@ -552,50 +675,107 @@ function SubscriptionSettingsContent() {
             <div className="py-8 text-center text-muted-foreground text-xs sm:text-sm">No billing records found.</div>
           ) : (
             <>
-              {/* Mobile Card List (visible on phones) */}
-              <div className="space-y-3 block sm:hidden">
-                {payments.map((p) => (
-                  <div key={p._id} className="p-3.5 rounded-xl bg-secondary/30 border border-border space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm text-foreground">₹{p.amount}</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                        {p.status}
-                      </span>
+              {/* Mobile Card List (Compacted & Scrollable Container for Phones) */}
+              <div className="block sm:hidden max-h-[380px] overflow-y-auto space-y-2 pr-1 overscroll-contain">
+                {payments.map((p) => {
+                  const details = getPaymentDetails(p);
+                  return (
+                    <div
+                      key={p._id}
+                      className="p-2.5 rounded-xl bg-secondary/30 border border-border space-y-1.5 shadow-sm hover:border-border/80 transition-all"
+                    >
+                      {/* Top Row: Plan & Action + Amount & Status Badge */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <h4 className="font-extrabold text-xs text-foreground truncate">{details.planTitle}</h4>
+                          <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
+                            {details.actionBadge}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-extrabold text-xs sm:text-sm text-foreground">₹{p.amount}</span>
+                          <div>{renderStatusBadge(p.status)}</div>
+                        </div>
+                      </div>
+
+                      {/* Bottom Row: Full IST Timestamp + Renewal Due or Ref */}
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground gap-2 pt-1 border-t border-border/50">
+                        <div className="flex items-center gap-1 shrink-0 text-foreground/80">
+                          <Clock className="w-3 h-3 text-primary/70 shrink-0" />
+                          <span>{formatTimestampIST(p.createdAt)}</span>
+                        </div>
+
+                        {details.nextRenewalDate ? (
+                          <span className="text-emerald-400 font-semibold truncate text-[10px]">
+                            Renews: <span className="font-mono font-bold">{details.nextRenewalDate}</span>
+                          </span>
+                        ) : (
+                          <span className="font-mono text-[9px] text-muted-foreground truncate max-w-[130px]">
+                            {p.providerPaymentId || 'Direct'}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{new Date(p.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                      <span className="font-mono text-[11px] truncate max-w-[160px]">{p.providerPaymentId || 'Direct / Mandate'}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              {/* Desktop / Tablet Table (visible on sm and larger) */}
-              <div className="hidden sm:block overflow-x-auto">
+              {/* Desktop / Tablet Table (visible on sm and larger, scrollable) */}
+              <div className="hidden sm:block max-h-[440px] overflow-y-auto overflow-x-auto pr-1">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-border text-xs text-muted-foreground uppercase">
-                      <th className="pb-3 font-semibold min-w-[100px]">Date</th>
+                    <tr className="border-b border-border text-xs text-muted-foreground uppercase sticky top-0 bg-card z-10">
+                      <th className="pb-3 font-semibold min-w-[140px]">Plan & Type</th>
                       <th className="pb-3 font-semibold min-w-[80px]">Amount</th>
-                      <th className="pb-3 font-semibold min-w-[90px]">Status</th>
+                      <th className="pb-3 font-semibold min-w-[100px]">Status</th>
+                      <th className="pb-3 font-semibold min-w-[170px]">Timestamp (IST)</th>
+                      <th className="pb-3 font-semibold min-w-[130px]">Next Renewal</th>
                       <th className="pb-3 font-semibold min-w-[140px]">Provider Ref</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {payments.map((p) => (
-                      <tr key={p._id} className="hover:bg-secondary/20">
-                        <td className="py-3.5 font-medium whitespace-nowrap">{new Date(p.createdAt).toLocaleDateString()}</td>
-                        <td className="py-3.5 font-bold whitespace-nowrap">₹{p.amount}</td>
-                        <td className="py-3.5 whitespace-nowrap">
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                            {p.status}
-                          </span>
-                        </td>
-                        <td className="py-3.5 text-xs text-muted-foreground font-mono whitespace-nowrap">
-                          {p.providerPaymentId || 'N/A'}
-                        </td>
-                      </tr>
-                    ))}
+                    {payments.map((p) => {
+                      const details = getPaymentDetails(p);
+                      return (
+                        <tr key={p._id} className="hover:bg-secondary/20 transition-colors">
+                          <td className="py-3.5 font-medium whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-foreground">{details.planTitle}</span>
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                                {details.actionBadge}
+                              </span>
+                            </div>
+                            {details.memberLimitText && (
+                              <span className="text-[11px] text-muted-foreground block">
+                                {details.memberLimitText}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 font-extrabold text-foreground whitespace-nowrap">
+                            ₹{p.amount}
+                          </td>
+                          <td className="py-3.5 whitespace-nowrap">
+                            {renderStatusBadge(p.status)}
+                          </td>
+                          <td className="py-3.5 text-xs text-foreground/90 whitespace-nowrap font-medium">
+                            {formatTimestampIST(p.createdAt)}
+                          </td>
+                          <td className="py-3.5 text-xs whitespace-nowrap">
+                            {details.nextRenewalDate ? (
+                              <span className="font-mono font-bold text-emerald-400">
+                                {details.nextRenewalDate}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 text-xs text-muted-foreground font-mono whitespace-nowrap">
+                            {p.providerPaymentId || 'Direct'}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

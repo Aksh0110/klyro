@@ -9,7 +9,7 @@ import { Award, Plus, CheckCircle2, Calendar, Clock, X } from 'lucide-react';
 import { PlanDurationType, PLAN_DURATION_TYPE } from '@klyro/config';
 
 export default function MembershipsPage() {
-  const { activeOrgId } = useAuth();
+  const { activeOrgId, activeBranchId } = useAuth();
   const [plans, setPlans] = useState<IMembershipPlan[]>([]);
   const [subscriptions, setSubscriptions] = useState<ICustomerMembership[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,7 +44,10 @@ export default function MembershipsPage() {
 
   useEffect(() => {
     loadData();
-  }, [activeOrgId]);
+    const handleBranchChanged = () => loadData();
+    window.addEventListener('klyro_branch_changed', handleBranchChanged);
+    return () => window.removeEventListener('klyro_branch_changed', handleBranchChanged);
+  }, [activeOrgId, activeBranchId]);
 
   const handleCreatePlan = async (e: React.FormEvent) => {
     e.preventDefault();

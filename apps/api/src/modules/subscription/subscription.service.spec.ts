@@ -143,6 +143,7 @@ describe('SubscriptionService', () => {
 
     mockSubModel.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(existingSub) });
     mockSubPaymentModel.findOne.mockReturnValue({
+      exec: jest.fn().mockResolvedValue(mockPendingPayment),
       sort: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(mockPendingPayment) }),
     });
 

@@ -10,7 +10,7 @@ import { QuickActionModal } from '@/components/QuickActionModal';
 
 export default function PaymentsPage() {
   const router = useRouter();
-  const { activeOrgId } = useAuth();
+  const { activeOrgId, activeBranchId } = useAuth();
 
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +29,12 @@ export default function PaymentsPage() {
     if (activeOrgId) {
       fetchPayments();
     }
-  }, [activeOrgId]);
+    const handleBranchChanged = () => {
+      if (activeOrgId) fetchPayments();
+    };
+    window.addEventListener('klyro_branch_changed', handleBranchChanged);
+    return () => window.removeEventListener('klyro_branch_changed', handleBranchChanged);
+  }, [activeOrgId, activeBranchId]);
 
   const fetchPayments = async () => {
     setLoading(true);

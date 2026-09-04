@@ -425,10 +425,11 @@ export class GymBillingService {
     return payment;
   }
 
-  async getPayments(organizationId: string, customerId?: string, invoiceId?: string) {
+  async getPayments(organizationId: string, customerId?: string, invoiceId?: string, branchId?: string) {
     const query: any = { organizationId: new Types.ObjectId(organizationId) };
     if (customerId && Types.ObjectId.isValid(customerId)) query.customerId = new Types.ObjectId(customerId);
     if (invoiceId && Types.ObjectId.isValid(invoiceId)) query.invoiceId = new Types.ObjectId(invoiceId);
+    if (branchId && Types.ObjectId.isValid(branchId)) query.branchId = new Types.ObjectId(branchId);
 
     return this.paymentModel
       .find(query)

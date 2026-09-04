@@ -28,10 +28,11 @@ import {
   X,
   Loader2,
   AlertTriangle,
+  Check,
 } from 'lucide-react';
 
 export default function SettingsPage() {
-  const { activeOrgId, user, refreshUser } = useAuth();
+  const { activeOrgId, activeBranchId, setActiveBranchId, refreshBranches, user, refreshUser } = useAuth();
   const [org, setOrg] = useState<IOrganization | null>(null);
   const [branches, setBranches] = useState<IBranch[]>([]);
   const [subData, setSubData] = useState<any>(null);
@@ -125,6 +126,7 @@ export default function SettingsPage() {
       setBranchCode('');
       setShowAddBranchForm(false);
       showToast('success', `New branch '${newBranch.name}' created successfully!`);
+      refreshBranches();
     } catch (err: any) {
       setMessage(err.message || 'Failed to add branch');
     } finally {
@@ -258,6 +260,7 @@ export default function SettingsPage() {
       setBranches((prev) => prev.filter((b) => b._id !== deletingBranch._id));
       setDeletingBranch(null);
       showToast('success', `Branch '${deletedName}' deleted successfully.`);
+      refreshBranches();
     } catch (err: any) {
       setBranchDeleteError(err.message || 'Failed to delete branch');
     } finally {
@@ -686,6 +689,23 @@ export default function SettingsPage() {
                         >
                           {b.status}
                         </span>
+                        {b._id === activeBranchId ? (
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30 flex items-center gap-0.5">
+                            <Check className="w-2.5 h-2.5" />
+                            Default Active
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveBranchId(b._id);
+                              showToast('success', `Active branch set to '${b.name}'`);
+                            }}
+                            className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border active:scale-95 transition-all"
+                          >
+                            Set Active
+                          </button>
+                        )}
                       </div>
                       <p className="text-[11px] font-mono text-muted-foreground">Code: {b.code}</p>
                     </div>

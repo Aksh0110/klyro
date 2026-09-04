@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 export default function CommunicationsPage() {
-  const { activeOrgId } = useAuth();
+  const { activeOrgId, activeBranchId } = useAuth();
   const [announcements, setAnnouncements] = useState<IAnnouncement[]>([]);
   const [retentionSummary, setRetentionSummary] = useState<RetentionAttentionSummary | null>(null);
   const [branches, setBranches] = useState<IBranch[]>([]);
@@ -46,7 +46,12 @@ export default function CommunicationsPage() {
   useEffect(() => {
     if (!activeOrgId) return;
     loadData();
-  }, [activeOrgId]);
+    const handleBranchChanged = () => {
+      if (activeOrgId) loadData();
+    };
+    window.addEventListener('klyro_branch_changed', handleBranchChanged);
+    return () => window.removeEventListener('klyro_branch_changed', handleBranchChanged);
+  }, [activeOrgId, activeBranchId]);
 
   const loadData = async () => {
     if (!activeOrgId) return;
@@ -60,7 +65,7 @@ export default function CommunicationsPage() {
       setAnnouncements(Array.isArray(annData) ? annData : []);
       setRetentionSummary(summaryData);
       setBranches(Array.isArray(branchData) ? branchData : []);
-      if (branchData.length > 0) setBranchId(branchData[0]._id);
+      if (branchData.length > 0) setBranchId(activeBranchId || branchData[0]._id);
     } catch (err: any) {
       console.error(err);
     } finally {

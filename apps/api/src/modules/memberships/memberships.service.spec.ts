@@ -21,6 +21,7 @@ describe('MembershipsService', () => {
       create: jest.fn(),
       find: jest.fn(),
       findOne: jest.fn(),
+      countDocuments: jest.fn(),
     };
     mockCustomersService = {
       findOneByIdAndOrg: jest.fn(),
@@ -99,5 +100,55 @@ describe('MembershipsService', () => {
     expect(result.price).toBe(2500);
     expect(result.status).toBe(MEMBERSHIP_STATUS.ACTIVE);
     expect(new Date(result.endDate).getMonth()).toBe(8); // September (month 8, 0-indexed)
+  });
+
+  it('should filter memberships strictly by branchId when provided', async () => {
+    const orgId = new Types.ObjectId().toString();
+    const branchId = new Types.ObjectId().toString();
+
+    const mockQueryChain = {
+      populate: jest.fn().mockReturnThis(),
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(), branchId: new Types.ObjectId(branchId) }]),
+    };
+
+    mockMembershipModel.find.mockReturnValue(mockQueryChain);
+    mockMembershipModel.countDocuments.mockReturnValue({
+      exec: jest.fn().mockResolvedValue(1),
+    });
+
+    const result = await service.findAllByOrganization(orgId, 1, 20, undefined, branchId);
+
+    expect(mockMembershipModel.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: new Types.ObjectId(orgId),
+        branchId: new Types.ObjectId(branchId),
+      }),
+    );
+    expect(result.data).toHaveLength(1);
+  });
+
+  it('should not filter by branchId when branchId is omitted', async () => {
+    const orgId = new Types.ObjectId().toString();
+
+    const mockQueryChain = {
+      populate: jest.fn().mockReturnThis(),
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([]),
+    };
+
+    mockMembershipModel.find.mockReturnValue(mockQueryChain);
+    mockMembershipModel.countDocuments.mockReturnValue({
+      exec: jest.fn().mockResolvedValue(0),
+    });
+
+    await service.findAllByOrganization(orgId, 1, 20);
+
+    const callArg = mockMembershipModel.find.mock.calls[mockMembershipModel.find.mock.calls.length - 1][0];
+    expect(callArg.branchId).toBeUndefined();
   });
 });

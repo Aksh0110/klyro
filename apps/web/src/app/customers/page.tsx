@@ -12,12 +12,13 @@ import {
   UserPlus,
   ChevronRight,
   Plus,
+  Building2,
 } from 'lucide-react';
 import { QuickActionModal } from '@/components/QuickActionModal';
 
 export default function CustomersPage() {
   const router = useRouter();
-  const { activeOrgId } = useAuth();
+  const { activeOrgId, activeBranchId, activeBranch, branches } = useAuth();
   const [customers, setCustomers] = useState<ICustomer[]>([]);
   const [memberships, setMemberships] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -52,7 +53,10 @@ export default function CustomersPage() {
 
   useEffect(() => {
     fetchCustomers();
-  }, [activeOrgId, search, activeTab]);
+    const handleBranchChanged = () => fetchCustomers();
+    window.addEventListener('klyro_branch_changed', handleBranchChanged);
+    return () => window.removeEventListener('klyro_branch_changed', handleBranchChanged);
+  }, [activeOrgId, activeBranchId, search, activeTab]);
 
   const filteredCustomers = React.useMemo(() => {
     return customers.filter((c) => {
@@ -77,9 +81,18 @@ export default function CustomersPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-extrabold text-[#d4e4fa]">Members Directory</h1>
-            <p className="text-xs text-[#958ea0]">
-              Total: <span className="font-bold text-[#d4e4fa]">{customers.length}</span> members
-            </p>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <p className="text-xs text-[#958ea0]">
+                Total: <span className="font-bold text-[#d4e4fa]">{customers.length}</span> members
+              </p>
+              {activeBranch && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-semibold">
+                  <Building2 className="w-3 h-3" />
+                  <span>{activeBranch.name}</span>
+                  <span className="text-[9px] opacity-75 font-normal">(Default Active)</span>
+                </span>
+              )}
+            </div>
           </div>
           <button
             onClick={() => setShowQuickModal(true)}
@@ -173,9 +186,21 @@ export default function CustomersPage() {
                           ({c.customerCode || 'CUST'})
                         </span>
                       </div>
-                      <p className="text-[10px] text-[#958ea0] font-mono truncate mt-0.5">
-                        {c.phone}
-                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-[10px] text-[#958ea0] font-mono truncate">
+                          {c.phone}
+                        </p>
+                        {(() => {
+                          const cBranchId = (c as any).branchId || (typeof (c as any).branchId === 'object' ? (c as any).branchId?._id : null);
+                          const bObj = branches.find((b) => b._id === cBranchId);
+                          return bObj ? (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.2 rounded bg-[#1c2b3c] text-[#958ea0] border border-[#273647]">
+                              <Building2 className="w-2.5 h-2.5 text-primary/70" />
+                              <span>{bObj.name}</span>
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
                     </div>
                   </div>
 

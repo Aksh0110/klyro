@@ -81,12 +81,15 @@ export class MembershipsService {
     return membership;
   }
 
-  async findAllByOrganization(organizationId: string, page = 1, limit = 20, status?: string) {
+  async findAllByOrganization(organizationId: string, page = 1, limit = 20, status?: string, branchId?: string) {
     const orgObjectId = new Types.ObjectId(organizationId);
     const skip = (page - 1) * limit;
 
     const filter: Record<string, any> = { organizationId: orgObjectId };
     if (status) filter.status = status;
+    if (branchId && Types.ObjectId.isValid(branchId)) {
+      filter.branchId = new Types.ObjectId(branchId);
+    }
 
     const [data, total] = await Promise.all([
       this.membershipModel

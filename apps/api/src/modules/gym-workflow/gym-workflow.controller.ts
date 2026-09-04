@@ -45,6 +45,9 @@ export class GymWorkflowController {
     @GetCurrentUser() user: any,
     @Body() dto: OnboardMemberDto,
   ) {
+    if (!dto.branchId && tenant.branchId) {
+      dto.branchId = tenant.branchId;
+    }
     const recordedByUserId = tenant?.userId || user?.userId || user?._id || user?.id;
     return this.workflowService.onboardMember(tenant.organizationId, dto, recordedByUserId);
   }
