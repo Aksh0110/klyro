@@ -25,6 +25,7 @@ import {
   X,
   Check,
   ArrowRight,
+  Lock,
 } from 'lucide-react';
 import { PlanChangeConfirmModal } from '@/components/subscription/PlanChangeConfirmModal';
 
@@ -39,6 +40,18 @@ function SubscriptionSettingsContent() {
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'history'>(
+    searchParams.get('tab') === 'history' ? 'history' : 'overview',
+  );
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'history') {
+      setActiveTab('history');
+    } else if (tabParam === 'overview') {
+      setActiveTab('overview');
+    }
+  }, [searchParams]);
 
   // In-Page Plan Selection & Upgrade Modal State
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -394,10 +407,11 @@ function SubscriptionSettingsContent() {
 
   const getPaymentDetails = (p: any) => {
     const meta = p.metadata || {};
+    const matchedPlan = plans.find((pl) => pl.monthlyPrice === p.amount);
     let planName =
       meta.targetPlanName ||
       meta.planName ||
-      plans.find((pl) => pl.monthlyPrice === p.amount)?.name;
+      matchedPlan?.name;
 
     if (!planName && data?.subscription?.subscriptionPlanId) {
       const currentPlan = data.subscription.subscriptionPlanId;
@@ -417,10 +431,10 @@ function SubscriptionSettingsContent() {
           : 'Subscription';
     }
 
-    const matchedPlan = plans.find(
-      (pl) => pl.monthlyPrice === p.amount || pl.name?.toLowerCase() === planName?.toLowerCase(),
-    );
-    const memberLimit = meta.memberLimit || matchedPlan?.memberLimit;
+    const memberLimit =
+      meta.memberLimit ||
+      matchedPlan?.memberLimit ||
+      (p.amount === 499 || planName?.toLowerCase() === 'starter' ? 30 : p.amount === 799 ? 500 : p.amount === 1199 ? 2000 : null);
 
     // Calculate renewal/expiry date for successful transactions
     let nextRenewalDate: string | null = null;
@@ -474,6 +488,130 @@ function SubscriptionSettingsContent() {
         );
     }
   };
+
+  const renderBillingHistoryCard = () => (
+    <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+      <div className="flex items-center justify-between border-b border-border pb-3">
+        <h3 className="font-bold text-base sm:text-lg">SaaS Billing History</h3>
+        <span className="text-xs text-muted-foreground font-medium">
+          {payments.length} Transaction{payments.length === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      {payments.length === 0 ? (
+        <div className="py-8 text-center text-muted-foreground text-xs sm:text-sm">
+          No billing records found.
+        </div>
+      ) : (
+        <>
+          {/* Mobile Card List (Compacted & Scrollable Container for Phones) */}
+          <div className="block sm:hidden max-h-[380px] overflow-y-auto space-y-2 pr-1 overscroll-contain">
+            {payments.map((p) => {
+              const details = getPaymentDetails(p);
+              return (
+                <div
+                  key={p._id}
+                  className="p-2.5 rounded-xl bg-secondary/30 border border-border space-y-1.5 shadow-sm hover:border-border/80 transition-all"
+                >
+                  {/* Top Row: Plan & Action + Amount & Status Badge */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <h4 className="font-extrabold text-xs text-foreground truncate">{details.planTitle}</h4>
+                      <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
+                        {details.actionBadge}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-extrabold text-xs sm:text-sm text-foreground">₹{p.amount}</span>
+                      <div>{renderStatusBadge(p.status)}</div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Row: Full IST Timestamp + Renewal Due or Ref */}
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground gap-2 pt-1 border-t border-border/50">
+                    <div className="flex items-center gap-1 shrink-0 text-foreground/80">
+                      <Clock className="w-3 h-3 text-primary/70 shrink-0" />
+                      <span>{formatTimestampIST(p.createdAt)}</span>
+                    </div>
+
+                    {details.nextRenewalDate ? (
+                      <span className="text-emerald-400 font-semibold truncate text-[10px]">
+                        Renews: <span className="font-mono font-bold">{details.nextRenewalDate}</span>
+                      </span>
+                    ) : (
+                      <span className="font-mono text-[9px] text-muted-foreground truncate max-w-[130px]">
+                        {p.providerPaymentId || 'Direct'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop / Tablet Table (visible on sm and larger, scrollable) */}
+          <div className="hidden sm:block max-h-[440px] overflow-y-auto overflow-x-auto pr-1">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs text-muted-foreground uppercase sticky top-0 bg-card z-10">
+                  <th className="pb-3 font-semibold min-w-[140px]">Plan & Type</th>
+                  <th className="pb-3 font-semibold min-w-[80px]">Amount</th>
+                  <th className="pb-3 font-semibold min-w-[100px]">Status</th>
+                  <th className="pb-3 font-semibold min-w-[170px]">Timestamp (IST)</th>
+                  <th className="pb-3 font-semibold min-w-[130px]">Next Renewal</th>
+                  <th className="pb-3 font-semibold min-w-[140px]">Provider Ref</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {payments.map((p) => {
+                  const details = getPaymentDetails(p);
+                  return (
+                    <tr key={p._id} className="hover:bg-secondary/20 transition-colors">
+                      <td className="py-3.5 font-medium whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-foreground">{details.planTitle}</span>
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                            {details.actionBadge}
+                          </span>
+                        </div>
+                        {details.memberLimitText && (
+                          <span className="text-[11px] text-muted-foreground block">
+                            {details.memberLimitText}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 font-extrabold text-foreground whitespace-nowrap">
+                        ₹{p.amount}
+                      </td>
+                      <td className="py-3.5 whitespace-nowrap">
+                        {renderStatusBadge(p.status)}
+                      </td>
+                      <td className="py-3.5 text-xs text-foreground/90 whitespace-nowrap font-medium">
+                        {formatTimestampIST(p.createdAt)}
+                      </td>
+                      <td className="py-3.5 text-xs whitespace-nowrap">
+                        {details.nextRenewalDate ? (
+                          <span className="font-mono font-bold text-emerald-400">
+                            {details.nextRenewalDate}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 text-xs text-muted-foreground font-mono whitespace-nowrap">
+                        {p.providerPaymentId || 'Direct'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <AppShell>
@@ -529,23 +667,69 @@ function SubscriptionSettingsContent() {
           </div>
         )}
 
-        {/* Dedicated 60-Day Free Trial Banner (if in Trial mode) */}
-        {isTrial && (
-          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-purple-950/30 border border-purple-500/30 text-purple-200 shadow-xl space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-2 p-1 bg-secondary/50 rounded-2xl border border-border w-fit">
+          <button
+            type="button"
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'overview'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Plan & Subscription</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('history')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'history'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>SaaS Billing History</span>
+            {payments.length > 0 && (
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                  activeTab === 'history' ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'
+                }`}
+              >
+                {payments.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {activeTab === 'history' ? (
+          <div className="space-y-4 animate-in fade-in duration-200" id="billing-history">
+            {/* Quick Active Plan Overview Banner */}
+            <div className="p-4 rounded-2xl bg-card border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-300 shrink-0">
-                  <Gift className="w-5 h-5 animate-pulse" />
+                <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
+                  <CreditCard className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-sm text-purple-100 flex items-center gap-2 flex-wrap">
-                    <span>🎉 60-Day Free Trial Active</span>
-                    <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-[10px] text-purple-300 font-mono">
-                      {trialDaysLeft} Days Remaining
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-extrabold text-foreground">{plan?.name || (isTrial ? 'Free Trial' : 'Active Plan')}</span>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                        sub?.status === 'ACTIVE'
+                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                          : sub?.status === 'TRIAL'
+                          ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                          : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                      }`}
+                    >
+                      {sub?.status || 'ACTIVE'}
                     </span>
-                  </h3>
-                  <p className="text-xs text-purple-300/80 mt-0.5">
-                    Full access to all Gym Owner features. Free trial ends on <strong className="text-purple-200">{formattedDueDate}</strong>.
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    ₹{sub?.amount || plan?.monthlyPrice || 499} / month · Max Capacity: {plan?.memberLimit || (sub?.amount === 499 || plan?.code === 'STARTER' ? 30 : 500)} Members · {formattedDueDate ? `Next Due: ${formattedDueDate}` : 'Active'}
                   </p>
                 </div>
               </div>
@@ -553,235 +737,215 @@ function SubscriptionSettingsContent() {
               <button
                 type="button"
                 onClick={handleOpenUpgradeModal}
-                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-purple-500 hover:bg-purple-600 text-white font-extrabold text-xs transition-all shadow-md shrink-0 text-center active:scale-95"
+                className="px-3.5 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 shrink-0"
               >
-                Upgrade to Paid Plan
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Renew / Upgrade Plan</span>
               </button>
             </div>
 
-            {/* Trial Progress Bar */}
-            <div className="space-y-1 pt-1">
-              <div className="flex justify-between text-[10px] font-bold text-purple-300/70">
-                <span>Trial Progress ({trialDaysLeft} / 60 Days left)</span>
-                <span>{trialPercentageLeft}% Remaining</span>
+            {/* SaaS Billing History Card */}
+            {renderBillingHistoryCard()}
+          </div>
+        ) : (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* Dedicated 60-Day Free Trial Banner (if in Trial mode) */}
+            {isTrial && (
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-purple-950/30 border border-purple-500/30 text-purple-200 shadow-xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-300 shrink-0">
+                      <Gift className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-sm text-purple-100 flex items-center gap-2 flex-wrap">
+                        <span>🎉 60-Day Free Trial Active</span>
+                        <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-[10px] text-purple-300 font-mono">
+                          {trialDaysLeft} Days Remaining
+                        </span>
+                      </h3>
+                      <p className="text-xs text-purple-300/80 mt-0.5">
+                        Full access to all Gym Owner features. Free trial ends on <strong className="text-purple-200">{formattedDueDate}</strong>.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenUpgradeModal}
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-purple-500 hover:bg-purple-600 text-white font-extrabold text-xs transition-all shadow-md shrink-0 text-center active:scale-95"
+                  >
+                    Upgrade to Paid Plan
+                  </button>
+                </div>
+
+                {/* Trial Progress Bar */}
+                <div className="space-y-1 pt-1">
+                  <div className="flex justify-between text-[10px] font-bold text-purple-300/70">
+                    <span>Trial Progress ({trialDaysLeft} / 60 Days left)</span>
+                    <span>{trialPercentageLeft}% Remaining</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-purple-950/60 overflow-hidden border border-purple-500/20">
+                    <div
+                      className="h-full bg-gradient-to-r from-purple-500 to-indigo-400 rounded-full transition-all duration-500"
+                      style={{ width: `${trialPercentageLeft}%` }}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="w-full h-2 rounded-full bg-purple-950/60 overflow-hidden border border-purple-500/20">
-                <div
-                  className="h-full bg-gradient-to-r from-purple-500 to-indigo-400 rounded-full transition-all duration-500"
-                  style={{ width: `${trialPercentageLeft}%` }}
-                />
+            )}
+
+            {/* Subscription Main Status Cards */}
+            <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 shadow-sm space-y-6">
+              {/* Top Plan Overview */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-6">
+                <div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h2 className="text-xl font-extrabold text-foreground">{plan?.name || 'Growth Plan'}</h2>
+                    <span
+                      className={`text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider ${
+                        sub?.status === 'ACTIVE'
+                          ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+                          : sub?.status === 'TRIAL'
+                          ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                          : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                      }`}
+                    >
+                      ● {sub?.status || 'NO_SUBSCRIPTION'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 font-medium">
+                    ₹{sub?.amount || plan?.monthlyPrice || 799} / month · Max Capacity: {plan?.memberLimit || (sub?.amount === 499 || plan?.code === 'STARTER' ? 30 : 500)} Gym Members
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenUpgradeModal}
+                  className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs rounded-xl hover:bg-primary/90 transition-all shadow-md shadow-primary/20 self-start sm:self-auto active:scale-95"
+                >
+                  Change Plan
+                </button>
               </div>
+
+              {/* Active Plan Capabilities / Features */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Included Plan Capabilities
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-secondary/30 border border-border text-xs">
+                    <Users className="w-4 h-4 text-primary shrink-0" />
+                    <span>Member Limit: <strong>{plan?.memberLimit || (sub?.amount === 499 || plan?.code === 'STARTER' ? 30 : 500)} Active Members</strong></span>
+                  </div>
+                  {/* Multi-Branch Support */}
+                  {plan?.code === 'STARTER' || sub?.amount === 499 ? (
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-secondary/20 border border-border/50 text-xs">
+                      <div className="flex items-center gap-2 text-muted-foreground opacity-75">
+                        <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="font-medium line-through">Multi-Branch Support</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleOpenUpgradeModal}
+                        className="px-2.5 py-1 rounded-lg bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25 text-[11px] font-bold transition-all shrink-0 flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
+                        title="Upgrade to Growth or Pro to manage multiple branches"
+                      >
+                        <Sparkles className="w-3 h-3 text-amber-300" />
+                        <span>Upgrade Plan</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-secondary/30 border border-border text-xs">
+                      <Building2 className="w-4 h-4 text-primary shrink-0" />
+                      <span>Multi-Branch Support</span>
+                    </div>
+                  )}
+
+                  {/* Member GPS Self Check-In */}
+                  {plan?.code === 'STARTER' || sub?.amount === 499 ? (
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-secondary/20 border border-border/50 text-xs">
+                      <div className="flex items-center gap-2 text-muted-foreground opacity-75">
+                        <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="font-medium line-through">Member Self Check-In</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleOpenUpgradeModal}
+                        className="px-2.5 py-1 rounded-lg bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25 text-[11px] font-bold transition-all shrink-0 flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
+                        title="Upgrade to Growth or Pro to enable member GPS self check-in"
+                      >
+                        <Sparkles className="w-3 h-3 text-amber-300" />
+                        <span>Upgrade Plan</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-secondary/30 border border-border text-xs">
+                      <Calendar className="w-4 h-4 text-primary shrink-0" />
+                      <span>Member GPS Self Check-In & QR</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-secondary/30 border border-border text-xs">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Invoicing, Reports & Automated Billing</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Billing Period Details */}
+              <div className="space-y-3 border-t border-border pt-6">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Billing Period & Renewal Details
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3.5 rounded-xl bg-secondary/30 border border-border space-y-1">
+                    <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Billing Cycle</span>
+                    </div>
+                    <p className="font-extrabold text-sm text-foreground">Monthly Recurring</p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-secondary/30 border border-border space-y-1">
+                    <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+                      <CalendarCheck className="w-3.5 h-3.5" />
+                      <span>{isTrial ? 'Trial Ends' : 'Next Payment Due'}</span>
+                    </div>
+                    <p className="font-extrabold text-sm text-foreground">{formattedDueDate}</p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-secondary/30 border border-border space-y-1">
+                    <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Billing Status</span>
+                    </div>
+                    <p className="font-extrabold text-sm text-emerald-400">
+                      {isTrial ? 'Free Trial Valid' : sub?.status === 'ACTIVE' ? 'Active & Up to Date' : sub?.status || 'Active'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cancellation Option */}
+              {sub?.status === 'ACTIVE' && !sub?.cancelAtPeriodEnd && (
+                <div className="border-t border-border pt-6 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleCancelSubscription}
+                    disabled={cancelling}
+                    className="text-xs text-destructive hover:underline font-semibold disabled:opacity-50"
+                  >
+                    Cancel subscription at period end
+                  </button>
+                </div>
+              )}
             </div>
+
+            {/* Also show Subscription Payment History in Overview */}
+            {renderBillingHistoryCard()}
           </div>
         )}
-
-        {/* Subscription Main Status Cards */}
-        <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 shadow-sm space-y-6">
-          {/* Top Plan Overview */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-6">
-            <div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <h2 className="text-xl font-extrabold text-foreground">{plan?.name || 'Growth Plan'}</h2>
-                <span
-                  className={`text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider ${
-                    sub?.status === 'ACTIVE'
-                      ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
-                      : sub?.status === 'TRIAL'
-                      ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
-                      : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                  }`}
-                >
-                  ● {sub?.status || 'NO_SUBSCRIPTION'}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1 font-medium">
-                ₹{sub?.amount || plan?.monthlyPrice || 799} / month · Max Capacity: {plan?.memberLimit || 500} Gym Members
-              </p>
-            </div>
-
-            <div className="text-left sm:text-right">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Next Renewal Due</span>
-              <span className="text-sm font-extrabold text-emerald-400 font-mono">{formattedDueDate}</span>
-              <span className="text-xs text-muted-foreground block font-medium">({renewalDaysLeft} days remaining)</span>
-            </div>
-          </div>
-
-          {/* Key Metrics Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            {/* Metric 1: Renewal Due */}
-            <div className="p-4 rounded-xl bg-secondary/40 border border-border space-y-1">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold">
-                <CalendarCheck className="w-4 h-4 text-emerald-500" />
-                <span>Renewal Due Date</span>
-              </div>
-              <p className="font-extrabold text-sm text-foreground">{formattedDueDate}</p>
-              <p className="text-[11px] text-muted-foreground font-medium">
-                {renewalDaysLeft > 0 ? `Due in ${renewalDaysLeft} days` : 'Renewal due today'}
-              </p>
-            </div>
-
-            {/* Metric 2: AutoPay Status */}
-            <div className="p-4 rounded-xl bg-secondary/40 border border-border space-y-1">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold">
-                <ShieldCheck className="w-4 h-4 text-purple-400" />
-                <span>AutoPay Mandate</span>
-              </div>
-              <p className="font-bold text-sm text-foreground flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                {mandate?.status || 'Active'} ({mandate?.method || 'UPI AutoPay'})
-              </p>
-              <p className="text-[11px] text-muted-foreground font-medium">Automatic recurring billing</p>
-            </div>
-
-            {/* Metric 3: Billing Gateway */}
-            <div className="p-4 rounded-xl bg-secondary/40 border border-border space-y-1">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold">
-                <CreditCard className="w-4 h-4 text-indigo-400" />
-                <span>Payment Gateway</span>
-              </div>
-              <p className="font-bold text-sm text-foreground">Razorpay Production</p>
-              <p className="text-[11px] text-muted-foreground font-medium">Secure 256-bit SSL Payment</p>
-            </div>
-          </div>
-
-          {sub?.cancelAtPeriodEnd && (
-            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2 font-medium">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              <span>Subscription scheduled for cancellation at end of current billing period.</span>
-            </div>
-          )}
-
-          {sub && !sub.cancelAtPeriodEnd && (
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={handleCancelSubscription}
-                disabled={cancelling}
-                className="text-xs text-muted-foreground hover:text-destructive underline font-medium"
-              >
-                Cancel subscription at period end
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Subscription Payment History */}
-        <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h3 className="font-bold text-base sm:text-lg">SaaS Billing History</h3>
-            <span className="text-xs text-muted-foreground font-medium">{payments.length} Transaction{payments.length === 1 ? '' : 's'}</span>
-          </div>
-
-          {payments.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground text-xs sm:text-sm">No billing records found.</div>
-          ) : (
-            <>
-              {/* Mobile Card List (Compacted & Scrollable Container for Phones) */}
-              <div className="block sm:hidden max-h-[380px] overflow-y-auto space-y-2 pr-1 overscroll-contain">
-                {payments.map((p) => {
-                  const details = getPaymentDetails(p);
-                  return (
-                    <div
-                      key={p._id}
-                      className="p-2.5 rounded-xl bg-secondary/30 border border-border space-y-1.5 shadow-sm hover:border-border/80 transition-all"
-                    >
-                      {/* Top Row: Plan & Action + Amount & Status Badge */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 truncate">
-                          <h4 className="font-extrabold text-xs text-foreground truncate">{details.planTitle}</h4>
-                          <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
-                            {details.actionBadge}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-extrabold text-xs sm:text-sm text-foreground">₹{p.amount}</span>
-                          <div>{renderStatusBadge(p.status)}</div>
-                        </div>
-                      </div>
-
-                      {/* Bottom Row: Full IST Timestamp + Renewal Due or Ref */}
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground gap-2 pt-1 border-t border-border/50">
-                        <div className="flex items-center gap-1 shrink-0 text-foreground/80">
-                          <Clock className="w-3 h-3 text-primary/70 shrink-0" />
-                          <span>{formatTimestampIST(p.createdAt)}</span>
-                        </div>
-
-                        {details.nextRenewalDate ? (
-                          <span className="text-emerald-400 font-semibold truncate text-[10px]">
-                            Renews: <span className="font-mono font-bold">{details.nextRenewalDate}</span>
-                          </span>
-                        ) : (
-                          <span className="font-mono text-[9px] text-muted-foreground truncate max-w-[130px]">
-                            {p.providerPaymentId || 'Direct'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Desktop / Tablet Table (visible on sm and larger, scrollable) */}
-              <div className="hidden sm:block max-h-[440px] overflow-y-auto overflow-x-auto pr-1">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-xs text-muted-foreground uppercase sticky top-0 bg-card z-10">
-                      <th className="pb-3 font-semibold min-w-[140px]">Plan & Type</th>
-                      <th className="pb-3 font-semibold min-w-[80px]">Amount</th>
-                      <th className="pb-3 font-semibold min-w-[100px]">Status</th>
-                      <th className="pb-3 font-semibold min-w-[170px]">Timestamp (IST)</th>
-                      <th className="pb-3 font-semibold min-w-[130px]">Next Renewal</th>
-                      <th className="pb-3 font-semibold min-w-[140px]">Provider Ref</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {payments.map((p) => {
-                      const details = getPaymentDetails(p);
-                      return (
-                        <tr key={p._id} className="hover:bg-secondary/20 transition-colors">
-                          <td className="py-3.5 font-medium whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-foreground">{details.planTitle}</span>
-                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-                                {details.actionBadge}
-                              </span>
-                            </div>
-                            {details.memberLimitText && (
-                              <span className="text-[11px] text-muted-foreground block">
-                                {details.memberLimitText}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3.5 font-extrabold text-foreground whitespace-nowrap">
-                            ₹{p.amount}
-                          </td>
-                          <td className="py-3.5 whitespace-nowrap">
-                            {renderStatusBadge(p.status)}
-                          </td>
-                          <td className="py-3.5 text-xs text-foreground/90 whitespace-nowrap font-medium">
-                            {formatTimestampIST(p.createdAt)}
-                          </td>
-                          <td className="py-3.5 text-xs whitespace-nowrap">
-                            {details.nextRenewalDate ? (
-                              <span className="font-mono font-bold text-emerald-400">
-                                {details.nextRenewalDate}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="py-3.5 text-xs text-muted-foreground font-mono whitespace-nowrap">
-                            {p.providerPaymentId || 'Direct'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </div>
 
         {/* Interactive Renew / Upgrade Plan Modal */}
         {showUpgradeModal && (
@@ -886,12 +1050,41 @@ function SubscriptionSettingsContent() {
                         <div className="space-y-1 sm:space-y-1.5 text-[10px] sm:text-[11px] border-t border-border/70 pt-2 mb-3">
                           <div className="flex items-center gap-1.5 text-foreground font-medium">
                             <Check className="w-3 h-3 text-emerald-500 shrink-0" />
-                            <span>Up to {p.memberLimit} members</span>
+                            <span>Up to {p.memberLimit} active members</span>
                           </div>
-                          <div className="flex items-center gap-1.5 text-muted-foreground">
-                            <Check className="w-3 h-3 text-emerald-500 shrink-0" />
-                            <span>Attendance & automated billing</span>
-                          </div>
+                          {/* Multi-Branch in Modal */}
+                          {p.code === 'STARTER' ? (
+                            <div className="flex items-center justify-between gap-1.5 p-1 rounded-lg bg-secondary/20 border border-border/40 text-[10px]">
+                              <div className="flex items-center gap-1 opacity-60">
+                                <Lock className="w-3 h-3 text-muted-foreground shrink-0" />
+                                <span className="line-through">Multi-Branch Management</span>
+                              </div>
+                              <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-primary/10 text-primary">Growth+</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-foreground">
+                              <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                              <span>
+                                {p.code === 'GROWTH' ? 'Up to 5 branches' : 'Unlimited branches'}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Member Self Check-in in Modal */}
+                          {p.code === 'STARTER' ? (
+                            <div className="flex items-center justify-between gap-1.5 p-1 rounded-lg bg-secondary/20 border border-border/40 text-[10px]">
+                              <div className="flex items-center gap-1 opacity-60">
+                                <Lock className="w-3 h-3 text-muted-foreground shrink-0" />
+                                <span className="line-through">Member Self Check-In</span>
+                              </div>
+                              <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-primary/10 text-primary">Growth+</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                              <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                              <span>GPS member self check-in</span>
+                            </div>
+                          )}
                         </div>
                       </div>
 

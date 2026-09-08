@@ -42,19 +42,25 @@ export class AttendanceController {
 
   @Get('today')
   @RequirePermissions(PERMISSIONS.ATTENDANCE_READ)
-  async getTodayAttendanceList(@GetTenantContext() tenantContext: TenantContext) {
+  async getTodayAttendanceList(
+    @GetTenantContext() tenantContext: TenantContext,
+    @Query('branchId') branchId?: string,
+  ) {
     return this.attendanceService.getTodayAttendanceList(
       tenantContext.organizationId,
-      tenantContext.branchId,
+      branchId || tenantContext.branchId,
     );
   }
 
   @Get('summary')
   @RequirePermissions(PERMISSIONS.ATTENDANCE_SUMMARY)
-  async getAttendanceSummary(@GetTenantContext() tenantContext: TenantContext) {
+  async getAttendanceSummary(
+    @GetTenantContext() tenantContext: TenantContext,
+    @Query('branchId') branchId?: string,
+  ) {
     return this.attendanceService.getAttendanceSummary(
       tenantContext.organizationId,
-      tenantContext.branchId,
+      branchId || tenantContext.branchId,
     );
   }
 

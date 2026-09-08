@@ -22,21 +22,22 @@ export class RetentionInsightService {
 
   async getRetentionSummary(organizationId: string, branchId?: string): Promise<RetentionAttentionSummary> {
     const orgObjId = new Types.ObjectId(organizationId);
+    const branchObjId = branchId && Types.ObjectId.isValid(branchId) ? new Types.ObjectId(branchId) : undefined;
     const now = new Date();
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
 
-    const queryBranch: any = { organizationId: orgObjId };
-    if (branchId) {
-      queryBranch.branchId = new Types.ObjectId(branchId);
+    // 1. Expiring Memberships (expiring in next 7 days or expired)
+    const membershipMatch: any = {
+      organizationId: orgObjId,
+      endDate: { $lte: sevenDaysFromNow },
+    };
+    if (branchObjId) {
+      membershipMatch.branchId = branchObjId;
     }
 
-    // 1. Expiring Memberships (expiring in next 7 days or expired)
     const expiringMemberships = await this.membershipModel
-      .find({
-        organizationId: orgObjId,
-        endDate: { $lte: sevenDaysFromNow },
-      })
+      .find(membershipMatch)
       .populate('customerId')
       .exec();
 
@@ -46,11 +47,16 @@ export class RetentionInsightService {
     });
 
     // 2. Overdue/Outstanding Invoices
+    const invoiceMatch: any = {
+      organizationId: orgObjId,
+      status: { $in: ['OPEN', 'PARTIALLY_PAID'] },
+    };
+    if (branchObjId) {
+      invoiceMatch.branchId = branchObjId;
+    }
+
     const overdueInvoices = await this.invoiceModel
-      .find({
-        organizationId: orgObjId,
-        status: { $in: ['OPEN', 'PARTIALLY_PAID'] },
-      })
+      .find(invoiceMatch)
       .populate('customerId')
       .exec();
 
@@ -60,10 +66,15 @@ export class RetentionInsightService {
     });
 
     // 3. Inactive Members
-    const activeCustomers = await this.customerModel.find({
+    const customerMatch: any = {
       organizationId: orgObjId,
       status: 'ACTIVE',
-    }).exec();
+    };
+    if (branchObjId) {
+      customerMatch.branchId = branchObjId;
+    }
+
+    const activeCustomers = await this.customerModel.find(customerMatch).exec();
 
     const attentionItemsMap = new Map<string, RetentionAttentionItem>();
 
@@ -71,10 +82,15 @@ export class RetentionInsightService {
       const cId = c._id.toString();
 
       // Check last attendance
-      const lastCheckIn = await this.attendanceModel.findOne({
+      const attendanceMatch: any = {
         organizationId: orgObjId,
         customerId: c._id,
-      }).sort({ checkInAt: -1 }).exec();
+      };
+      if (branchObjId) {
+        attendanceMatch.branchId = branchObjId;
+      }
+
+      const lastCheckIn = await this.attendanceModel.findOne(attendanceMatch).sort({ checkInAt: -1 }).exec();
 
       const daysInactive = lastCheckIn
         ? Math.floor((now.getTime() - new Date(lastCheckIn.checkInAt).getTime()) / (1000 * 3600 * 24))
@@ -120,10 +136,19 @@ export class RetentionInsightService {
     }
 
     // 4. Scheduled Announcements Count
-    const scheduledAnnouncementsCount = await this.announcementModel.countDocuments({
+    const announcementMatch: any = {
       organizationId: orgObjId,
       status: ANNOUNCEMENT_STATUS.SCHEDULED,
-    });
+    };
+    if (branchObjId) {
+      announcementMatch.$or = [
+        { branchId: branchObjId },
+        { branchId: { $exists: false } },
+        { branchId: null },
+      ];
+    }
+
+    const scheduledAnnouncementsCount = await this.announcementModel.countDocuments(announcementMatch);
 
     const attentionItems = Array.from(attentionItemsMap.values());
     attentionItems.sort((a, b) => {
@@ -133,6 +158,7 @@ export class RetentionInsightService {
     });
 
     return {
+      totalActiveMembers: activeCustomers.length,
       expiringCount: expiringMemberships.length,
       expiringAmountAtRisk,
       overdueCount: overdueInvoices.length,

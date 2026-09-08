@@ -57,15 +57,18 @@ export default function DashboardPage() {
     if (!activeOrgId) return;
     setIsLoading(true);
 
+    const currentBranchId = activeBranchId || (typeof window !== 'undefined' ? localStorage.getItem('klyro_active_branch_id') : null);
+    const branchQuery = currentBranchId ? `?branchId=${currentBranchId}` : '';
+
     try {
       const [subData, orgData, finData, todayData, retData, payData, custData] = await Promise.all([
         apiRequest<any>('/subscription/current', {}, activeOrgId).catch(() => null),
         apiRequest<IOrganization>('/organizations/current', {}, activeOrgId).catch(() => null),
-        apiRequest<any>('/financial-summary', {}, activeOrgId).catch(() => null),
-        apiRequest<any[]>('/attendance/today', {}, activeOrgId).catch(() => []),
-        apiRequest<any>('/communications/retention-summary', {}, activeOrgId).catch(() => null),
-        apiRequest<any[]>('/payments', {}, activeOrgId).catch(() => []),
-        apiRequest<any>('/customers', {}, activeOrgId).catch(() => []),
+        apiRequest<any>(`/financial-summary${branchQuery}`, {}, activeOrgId).catch(() => null),
+        apiRequest<any[]>(`/attendance/today${branchQuery}`, {}, activeOrgId).catch(() => []),
+        apiRequest<any>(`/communications/retention-summary${branchQuery}`, {}, activeOrgId).catch(() => null),
+        apiRequest<any[]>(`/payments${branchQuery}`, {}, activeOrgId).catch(() => []),
+        apiRequest<any>(`/customers${branchQuery}`, {}, activeOrgId).catch(() => []),
       ]);
 
       if (subData) setSubSummary(subData);

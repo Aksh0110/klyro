@@ -19,6 +19,7 @@ import {
   X,
   CreditCard,
   Zap,
+  Lock,
 } from 'lucide-react';
 import { PlanChangeConfirmModal } from '@/components/subscription/PlanChangeConfirmModal';
 
@@ -29,6 +30,15 @@ interface SubscriptionPlan {
   description: string;
   monthlyPrice: number;
   memberLimit: number;
+  branchLimit?: number;
+  features?: {
+    attendance?: boolean;
+    reports?: boolean;
+    staff?: boolean;
+    renewalReminders?: boolean;
+    selfCheckIn?: boolean;
+    multiBranch?: boolean;
+  };
 }
 
 interface ToastState {
@@ -482,14 +492,81 @@ export default function SubscriptionPlansPage() {
                       <Check className="w-4 h-4 text-emerald-500 shrink-0" />
                       <span>Up to {plan.memberLimit} active members</span>
                     </div>
+
+                    {/* Multi-Branch Management (Disabled with small Upgrade button beside it) */}
+                    {plan.code === 'STARTER' ? (
+                      <div className="flex items-center justify-between gap-2 p-1.5 rounded-xl bg-secondary/30 border border-border/40 text-muted-foreground">
+                        <div className="flex items-center gap-1.5 opacity-60">
+                          <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-[11px] font-medium line-through">Multi-Branch Management</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const growth = plans.find((p) => p.code === 'GROWTH');
+                            if (growth) handlePlanSelection(growth);
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25 text-[10px] font-bold transition-all shrink-0 flex items-center gap-1 shadow-sm active:scale-95"
+                          title="Upgrade to Growth to unlock multi-branch management"
+                        >
+                          <Sparkles className="w-2.5 h-2.5" />
+                          <span>Upgrade Plan</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-foreground font-medium">
+                        <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span>
+                          {plan.code === 'GROWTH'
+                            ? 'Up to 5 branches management'
+                            : 'Unlimited branch management'}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Member Self Check-In (Disabled with small Upgrade button beside it) */}
+                    {plan.code === 'STARTER' ? (
+                      <div className="flex items-center justify-between gap-2 p-1.5 rounded-xl bg-secondary/30 border border-border/40 text-muted-foreground">
+                        <div className="flex items-center gap-1.5 opacity-60">
+                          <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-[11px] font-medium line-through">Member Self Check-In</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const growth = plans.find((p) => p.code === 'GROWTH');
+                            if (growth) handlePlanSelection(growth);
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25 text-[10px] font-bold transition-all shrink-0 flex items-center gap-1 shadow-sm active:scale-95"
+                          title="Upgrade to Growth to unlock GPS member self check-in"
+                        >
+                          <Sparkles className="w-2.5 h-2.5" />
+                          <span>Upgrade Plan</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span>QR & GPS member self check-in</span>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span>QR & GPS attendance check-in</span>
+                      <span>
+                        {plan.code === 'STARTER'
+                          ? 'Staff QR scan & manual attendance'
+                          : 'Staff & biometric attendance'}
+                      </span>
                     </div>
+
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Check className="w-4 h-4 text-emerald-500 shrink-0" />
                       <span>Invoicing, GST & automated billing</span>
                     </div>
+
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Check className="w-4 h-4 text-emerald-500 shrink-0" />
                       <span>WhatsApp & SMS notifications</span>

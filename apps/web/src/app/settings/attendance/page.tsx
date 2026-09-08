@@ -16,6 +16,9 @@ import {
   Info,
   Building2,
   Loader2,
+  AlertTriangle,
+  Sparkles,
+  Lock,
 } from 'lucide-react';
 import Link from 'next/link';
 import { GymLocationMap } from '@/components/GymLocationMap';
@@ -29,6 +32,7 @@ export default function AttendanceSettingsPage() {
   const [gettingLocation, setGettingLocation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isStarterPlan, setIsStarterPlan] = useState(false);
 
   // Form State
   const [selfCheckInEnabled, setSelfCheckInEnabled] = useState(false);
@@ -59,6 +63,18 @@ export default function AttendanceSettingsPage() {
         setSelectedBranchId(primary._id);
         populateForm(primary);
       }
+      // Check active subscription plan
+      apiRequest<any>('/subscription/current', { method: 'GET' }, activeOrgId)
+        .then((subRes) => {
+          const planCode = subRes?.subscription?.subscriptionPlanId?.code;
+          const planAmount = subRes?.subscription?.amount;
+          const isTrial = subRes?.subscription?.status === 'TRIAL';
+          if (!isTrial && (planCode === 'STARTER' || planAmount === 499)) {
+            setIsStarterPlan(true);
+            setSelfCheckInEnabled(false);
+          }
+        })
+        .catch(() => {});
     } catch (err: any) {
       setError(err.message || 'Failed to load branch settings');
     } finally {
@@ -101,8 +117,8 @@ export default function AttendanceSettingsPage() {
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!activeOrgId || !selectedBranchId) return;
 
     setError(null);
@@ -175,23 +191,44 @@ export default function AttendanceSettingsPage() {
             </p>
           </div>
 
-          {/* Branch Switcher for multi-branch gyms */}
-          {branches.length > 1 && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-secondary/50 border border-border rounded-xl self-start sm:self-auto">
-              <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
-              <select
-                value={selectedBranchId}
-                onChange={(e) => handleBranchSelect(e.target.value)}
-                className="bg-transparent font-semibold text-xs text-foreground focus:outline-none cursor-pointer"
-              >
-                {branches.map((b) => (
-                  <option key={b._id} value={b._id} className="bg-card text-foreground">
-                    {b.name} ({b.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+            {/* Branch Switcher for multi-branch gyms */}
+            {branches.length > 1 && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-secondary/50 border border-border rounded-xl">
+                <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                <select
+                  value={selectedBranchId}
+                  onChange={(e) => handleBranchSelect(e.target.value)}
+                  className="bg-transparent font-semibold text-xs text-foreground focus:outline-none cursor-pointer"
+                >
+                  {branches.map((b) => (
+                    <option key={b._id} value={b._id} className="bg-card text-foreground">
+                      {b.name} ({b.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Cancel Link */}
+            <Link
+              href="/settings"
+              className="px-3.5 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded-xl transition-colors"
+            >
+              Cancel
+            </Link>
+
+            {/* Upper Short & Modern Save Button */}
+            <button
+              type="button"
+              onClick={() => handleSubmit()}
+              disabled={saving || loading}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-xl shadow-sm hover:shadow transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              <span>{saving ? 'Saving...' : 'Save'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Notifications */}
@@ -216,6 +253,25 @@ export default function AttendanceSettingsPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Starter Plan Notice Banner */}
+            {isStarterPlan && (
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                  <div>
+                    <strong className="text-amber-300 block">Starter Plan Limitation:</strong>
+                    <span>Member GPS self check-in is not supported on the Starter 499 plan (Single branch & staff attendance only). Upgrade to Growth or Pro to enable mobile self check-in.</span>
+                  </div>
+                </div>
+                <Link
+                  href="/settings/subscription/plans"
+                  className="px-3 py-1.5 rounded-xl bg-amber-500 text-black font-bold text-xs hover:bg-amber-400 transition-all shrink-0 text-center"
+                >
+                  Upgrade Plan
+                </Link>
+              </div>
+            )}
+
             {/* 1. Master Toggle */}
             <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border shadow-sm flex items-center justify-between gap-4">
               <div className="flex items-start gap-3">
@@ -231,35 +287,62 @@ export default function AttendanceSettingsPage() {
                     <span className="font-bold text-foreground text-sm sm:text-base">Member Self Check-In</span>
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        selfCheckInEnabled
+                        isStarterPlan
+                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                          : selfCheckInEnabled
                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                           : 'bg-secondary text-muted-foreground'
                       }`}
                     >
-                      {selfCheckInEnabled ? 'Enabled' : 'Disabled'}
+                      {isStarterPlan ? 'Plan Locked' : selfCheckInEnabled ? 'Enabled' : 'Disabled'}
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Allow members to check in automatically when they arrive at the gym.
+                    {isStarterPlan
+                      ? 'Member GPS self check-in is unavailable on Starter plan. Staff can scan member QR or record attendance.'
+                      : 'Allow members to check in automatically when they arrive at the gym.'}
                   </p>
                 </div>
               </div>
 
-              <button
-                type="button"
-                role="switch"
-                aria-checked={selfCheckInEnabled}
-                onClick={() => setSelfCheckInEnabled(!selfCheckInEnabled)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  selfCheckInEnabled ? 'bg-primary' : 'bg-muted-foreground/30'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition duration-200 ease-in-out ${
-                    selfCheckInEnabled ? 'translate-x-5' : 'translate-x-0'
+              {isStarterPlan ? (
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={false}
+                    disabled
+                    className="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent bg-muted-foreground/20 opacity-40 cursor-not-allowed"
+                    title="Member GPS Self Check-In is disabled on Starter plan"
+                  >
+                    <span className="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-muted shadow-sm translate-x-0" />
+                  </button>
+
+                  <Link
+                    href="/settings/subscription/plans"
+                    className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-[11px] font-bold shadow-md shadow-purple-950/20 flex items-center gap-1.5 transition-all active:scale-95 shrink-0 cursor-pointer"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-300" />
+                    <span>Upgrade Plan</span>
+                  </Link>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={selfCheckInEnabled}
+                  onClick={() => setSelfCheckInEnabled(!selfCheckInEnabled)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none cursor-pointer ${
+                    selfCheckInEnabled ? 'bg-primary' : 'bg-muted-foreground/30'
                   }`}
-                />
-              </button>
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition duration-200 ease-in-out ${
+                      selfCheckInEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              )}
             </div>
 
             {/* 2. Dependent Options - Only shown when Self Check-In is Enabled */}
@@ -330,23 +413,6 @@ export default function AttendanceSettingsPage() {
               </div>
             )}
 
-            {/* 3. Action Buttons */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Link
-                href="/settings"
-                className="px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={saving}
-                className="py-2.5 px-6 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 text-xs shadow-md disabled:opacity-50 active:scale-95"
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>{saving ? 'Saving...' : 'Save Settings'}</span>
-              </button>
-            </div>
           </form>
         )}
       </div>

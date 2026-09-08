@@ -47,8 +47,8 @@ export const GymLocationMap: React.FC<GymLocationMapProps> = ({
     );
   }
 
-  // Google Maps embed URL based on zoom level
-  const mapSrc = `https://maps.google.com/maps?q=${parsedLat},${parsedLng}&z=${zoomLevel}&output=embed`;
+  // Google Maps embed URL based on zoom level (using ll and t=m to center without default red pin)
+  const mapSrc = `https://maps.google.com/maps?ll=${parsedLat},${parsedLng}&t=m&z=${zoomLevel}&output=embed`;
 
   return (
     <div className={`relative w-full rounded-2xl overflow-hidden border border-border bg-card shadow-md ${className}`}>
