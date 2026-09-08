@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   XCircle,
+  Lock,
 } from 'lucide-react';
 
 interface SubscriptionPlan {
@@ -419,9 +420,37 @@ export default function SubscriptionSetupPage() {
                             <Check className="w-3.5 h-3.5 text-[#4edea3]" />
                             Up to {plan.memberLimit} active members
                           </li>
-                          <li className="flex items-center gap-2 text-[#958ea0]">
-                            <Check className="w-3.5 h-3.5 text-[#4edea3]" />
-                            Attendance & Member check-in
+                          <li className="flex items-center justify-between gap-1 text-[#958ea0]">
+                            {plan.code === 'STARTER' ? (
+                              <div className="flex items-center justify-between w-full">
+                                <span className="flex items-center gap-2 opacity-60 line-through">
+                                  <Lock className="w-3.5 h-3.5 text-[#958ea0]" />
+                                  Multi-branch operations
+                                </span>
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-bold">Growth+</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-[#d4e4fa]">
+                                <Check className="w-3.5 h-3.5 text-[#4edea3]" />
+                                Multi-branch operations
+                              </div>
+                            )}
+                          </li>
+                          <li className="flex items-center justify-between gap-1 text-[#958ea0]">
+                            {plan.code === 'STARTER' ? (
+                              <div className="flex items-center justify-between w-full">
+                                <span className="flex items-center gap-2 opacity-60 line-through">
+                                  <Lock className="w-3.5 h-3.5 text-[#958ea0]" />
+                                  Member self check-in
+                                </span>
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-bold">Growth+</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-[#958ea0]">
+                                <Check className="w-3.5 h-3.5 text-[#4edea3]" />
+                                Member GPS self check-in & QR
+                              </div>
+                            )}
                           </li>
                           <li className="flex items-center gap-2 text-[#958ea0]">
                             <Check className="w-3.5 h-3.5 text-[#4edea3]" />

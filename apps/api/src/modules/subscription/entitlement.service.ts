@@ -70,4 +70,31 @@ export class EntitlementService {
       reason: `Subscription is ${subscription.status}. Payment required to access Klyro SaaS platform.`,
     };
   }
+
+  async getEffectivePlan(organizationId: string): Promise<SubscriptionPlanDocument | null> {
+    const orgObjectId = new Types.ObjectId(organizationId);
+    const subscription = await this.subscriptionModel
+      .findOne({ organizationId: orgObjectId })
+      .populate('subscriptionPlanId')
+      .exec();
+
+    if (!subscription) {
+      return null;
+    }
+
+    if (
+      subscription.subscriptionPlanId &&
+      typeof subscription.subscriptionPlanId === 'object' &&
+      (subscription.subscriptionPlanId as any).name
+    ) {
+      return subscription.subscriptionPlanId as unknown as SubscriptionPlanDocument;
+    }
+
+    if (subscription.subscriptionPlanId) {
+      return this.planModel.findById(subscription.subscriptionPlanId).exec();
+    }
+
+    return null;
+  }
 }
+

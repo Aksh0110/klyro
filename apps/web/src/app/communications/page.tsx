@@ -57,15 +57,18 @@ export default function CommunicationsPage() {
     if (!activeOrgId) return;
     try {
       setLoading(true);
+      const currentBranchId = activeBranchId || (typeof window !== 'undefined' ? localStorage.getItem('klyro_active_branch_id') : null);
+      const branchQuery = currentBranchId ? `?branchId=${currentBranchId}` : '';
+
       const [annData, summaryData, branchData] = await Promise.all([
-        apiRequest<IAnnouncement[]>('/announcements', {}, activeOrgId),
-        apiRequest<RetentionAttentionSummary>('/communications/retention-summary', {}, activeOrgId),
+        apiRequest<IAnnouncement[]>(`/announcements${branchQuery}`, {}, activeOrgId),
+        apiRequest<RetentionAttentionSummary>(`/communications/retention-summary${branchQuery}`, {}, activeOrgId),
         apiRequest<IBranch[]>('/branches', {}, activeOrgId),
       ]);
       setAnnouncements(Array.isArray(annData) ? annData : []);
       setRetentionSummary(summaryData);
       setBranches(Array.isArray(branchData) ? branchData : []);
-      if (branchData.length > 0) setBranchId(activeBranchId || branchData[0]._id);
+      if (branchData.length > 0) setBranchId(currentBranchId || branchData[0]._id);
     } catch (err: any) {
       console.error(err);
     } finally {

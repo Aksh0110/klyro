@@ -1,18 +1,40 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreateBranchDto, UpdateBranchDto } from '@klyro/validation';
 import { Branch, BranchDocument } from './schemas/branch.schema';
+import { EntitlementService } from '../subscription/entitlement.service';
 
 @Injectable()
 export class BranchesService {
   constructor(
     @InjectModel(Branch.name)
     private readonly branchModel: Model<BranchDocument>,
+    @Optional()
+    private readonly entitlementService?: EntitlementService,
   ) {}
 
   async createBranch(organizationId: string, dto: CreateBranchDto): Promise<BranchDocument> {
     const orgObjectId = new Types.ObjectId(organizationId);
+
+    // Verify branch limit and self check-in entitlement from plan
+    if (this.entitlementService) {
+      const plan = await this.entitlementService.getEffectivePlan(organizationId);
+      if (plan) {
+        const branchCount = await this.branchModel.countDocuments({ organizationId: orgObjectId });
+        const maxBranches = plan.branchLimit || (plan.features?.multiBranch ? 5 : 1);
+        if (branchCount >= maxBranches) {
+          throw new BadRequestException(
+            `Your ${plan.name} plan only supports single-branch management (limit: ${maxBranches}). Please upgrade to Growth or Pro to add more branches.`,
+          );
+        }
+        if (dto.settings?.memberSelfCheckInEnabled && plan.features?.selfCheckIn === false) {
+          throw new BadRequestException(
+            `Member self check-in is not supported on the ${plan.name} plan. Please upgrade to Growth or Pro to enable GPS self check-in.`,
+          );
+        }
+      }
+    }
 
     const existingCode = await this.branchModel.findOne({
       organizationId: orgObjectId,
@@ -115,6 +137,15 @@ export class BranchesService {
 
     const isEnablingSelfCheckIn = branch.settings?.memberSelfCheckInEnabled;
     if (isEnablingSelfCheckIn) {
+      if (this.entitlementService) {
+        const plan = await this.entitlementService.getEffectivePlan(organizationId);
+        if (plan && plan.features?.selfCheckIn === false) {
+          throw new BadRequestException(
+            `Member self check-in is not supported on the ${plan.name} plan. Please upgrade to Growth or Pro to enable member self check-in.`,
+          );
+        }
+      }
+
       const lat = branch.location?.latitude;
       const lng = branch.location?.longitude;
       if (lat === undefined || lat === null || lng === undefined || lng === null) {

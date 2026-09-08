@@ -11,6 +11,8 @@ export interface PlanFeatures {
   reports?: boolean;
   staff?: boolean;
   renewalReminders?: boolean;
+  selfCheckIn?: boolean;
+  multiBranch?: boolean;
 }
 
 export interface ISubscriptionPlan {
@@ -21,6 +23,7 @@ export interface ISubscriptionPlan {
   monthlyPrice: number;
   currency: string;
   memberLimit: number;
+  branchLimit?: number;
   features: PlanFeatures;
   status: PlanStatusType;
   createdAt: Date | string;

@@ -17,6 +17,12 @@ export class PlanFeatures {
 
   @Prop({ default: true })
   renewalReminders!: boolean;
+
+  @Prop({ default: true })
+  selfCheckIn!: boolean;
+
+  @Prop({ default: true })
+  multiBranch!: boolean;
 }
 
 export const PlanFeaturesSchema = SchemaFactory.createForClass(PlanFeatures);
@@ -43,6 +49,9 @@ export class SubscriptionPlan {
 
   @Prop({ required: true, default: 500 })
   memberLimit!: number;
+
+  @Prop({ required: true, default: 1 })
+  branchLimit!: number;
 
   @Prop({ type: PlanFeaturesSchema, default: () => ({}) })
   features!: PlanFeatures;

@@ -23,6 +23,7 @@ describe('CommunicationsModule Unit Tests', () => {
   let audienceResolver: AudienceResolverService;
   let notificationService: NotificationService;
   let announcementsService: AnnouncementsService;
+  let retentionInsightService: RetentionInsightService;
 
   const mockOrgId = new Types.ObjectId().toString();
   const mockUserId = new Types.ObjectId().toString();
@@ -143,6 +144,7 @@ describe('CommunicationsModule Unit Tests', () => {
     audienceResolver = module.get<AudienceResolverService>(AudienceResolverService);
     notificationService = module.get<NotificationService>(NotificationService);
     announcementsService = module.get<AnnouncementsService>(AnnouncementsService);
+    retentionInsightService = module.get<RetentionInsightService>(RetentionInsightService);
 
     jest.clearAllMocks();
   });
@@ -197,6 +199,44 @@ describe('CommunicationsModule Unit Tests', () => {
       );
 
       expect(res).toBeDefined();
+    });
+  });
+
+  describe('RetentionInsightService', () => {
+    it('should query with branchId when branchId is provided', async () => {
+      const res = await retentionInsightService.getRetentionSummary(mockOrgId, mockBranchId);
+      expect(res).toBeDefined();
+      expect(res).toHaveProperty('expiringCount');
+      expect(res).toHaveProperty('overdueCount');
+      expect(res).toHaveProperty('inactiveCount');
+      expect(res).toHaveProperty('totalActiveMembers');
+
+      expect(mockMembershipModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branchId: new Types.ObjectId(mockBranchId),
+        }),
+      );
+      expect(mockInvoiceModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branchId: new Types.ObjectId(mockBranchId),
+        }),
+      );
+      expect(mockCustomerModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branchId: new Types.ObjectId(mockBranchId),
+        }),
+      );
+    });
+
+    it('should query organization-wide when branchId is not provided', async () => {
+      const res = await retentionInsightService.getRetentionSummary(mockOrgId);
+      expect(res).toBeDefined();
+      expect(res).toHaveProperty('expiringCount');
+      expect(mockMembershipModel.find).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          branchId: expect.anything(),
+        }),
+      );
     });
   });
 });

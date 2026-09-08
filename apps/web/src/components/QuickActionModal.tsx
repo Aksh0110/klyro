@@ -18,6 +18,8 @@ import {
   ChevronUp,
   Loader2,
   Building2,
+  Plus,
+  Award,
 } from 'lucide-react';
 
 import { validatePhoneNumber, sanitizePhoneNumber } from '@/lib/phone-validation';
@@ -85,6 +87,16 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
   >('ALL_MEMBERS');
   const [annBranchId, setAnnBranchId] = useState('');
 
+  // Quick Plan Creation state (shown only when no membership plan is already created)
+  const [showQuickCreatePlan, setShowQuickCreatePlan] = useState(false);
+  const [quickPlanName, setQuickPlanName] = useState('');
+  const [quickPlanCode, setQuickPlanCode] = useState('');
+  const [quickPlanDuration, setQuickPlanDuration] = useState(1);
+  const [quickPlanDurationType, setQuickPlanDurationType] = useState<string>('MONTHS');
+  const [quickPlanPrice, setQuickPlanPrice] = useState<number | ''>(2000);
+  const [isCreatingPlan, setIsCreatingPlan] = useState(false);
+  const [quickPlanError, setQuickPlanError] = useState<string | null>(null);
+
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
@@ -115,10 +127,13 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
   // Fetch pending payment members for Collect Payment tab
   useEffect(() => {
     if (!isOpen || !activeOrgId) return;
+    const currentBranchId = activeBranchId || (typeof window !== 'undefined' ? localStorage.getItem('klyro_active_branch_id') : null);
+    const branchQuery = currentBranchId ? `?branchId=${currentBranchId}` : '';
+
     const fetchPendingInvoices = async () => {
       setIsLoadingPending(true);
       try {
-        const invData = await apiRequest<any[]>('/invoices', {}, activeOrgId).catch(() => []);
+        const invData = await apiRequest<any[]>(`/invoices${branchQuery}`, {}, activeOrgId).catch(() => []);
         const list = Array.isArray(invData) ? invData : (invData as any)?.data || [];
         const pending = list.filter((i: any) => i.status !== 'PAID' && i.status !== 'VOID' && i.customerId);
         setPendingInvoices(pending);
@@ -132,7 +147,8 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
     const fetchExpiringMemberships = async () => {
       setIsLoadingExpiring(true);
       try {
-        const res = await apiRequest<any>('/memberships?limit=100', {}, activeOrgId).catch(() => null);
+        const memQuery = `/memberships?limit=100${currentBranchId ? `&branchId=${currentBranchId}` : ''}`;
+        const res = await apiRequest<any>(memQuery, {}, activeOrgId).catch(() => null);
         const list = Array.isArray(res) ? res : res?.data || [];
         // Memberships that are expired or expiring within 7 days
         const now = new Date();
@@ -156,7 +172,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
     fetchPendingInvoices();
     fetchExpiringMemberships();
-  }, [isOpen, activeOrgId]);
+  }, [isOpen, activeOrgId, activeBranchId]);
 
   // Phone duplicate check debounce
   useEffect(() => {
@@ -228,6 +244,44 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
     setAnnBody('');
     setSuccessMessage(null);
     setErrorMessage(null);
+  };
+
+  const handleQuickCreatePlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeOrgId || !quickPlanName.trim() || quickPlanPrice === '' || isCreatingPlan) return;
+    setIsCreatingPlan(true);
+    setQuickPlanError(null);
+    try {
+      const generatedCode =
+        quickPlanCode.trim() ||
+        quickPlanName.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 10) ||
+        'M-PLAN';
+
+      const created = await apiRequest<IMembershipPlan>(
+        '/membership-plans',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            name: quickPlanName.trim(),
+            code: generatedCode,
+            duration: Number(quickPlanDuration) || 1,
+            durationType: quickPlanDurationType,
+            price: Number(quickPlanPrice),
+          }),
+        },
+        activeOrgId,
+      );
+
+      setPlans((prev) => [...prev, created]);
+      setSelectedPlanId(created._id);
+      setRenewPlanId(created._id);
+      setShowQuickCreatePlan(false);
+      setQuickPlanError(null);
+    } catch (err: any) {
+      setQuickPlanError(err?.message || 'Failed to create membership plan');
+    } finally {
+      setIsCreatingPlan(false);
+    }
   };
 
   const handleOnboardSubmit = async (e: React.FormEvent) => {
@@ -611,17 +665,28 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
                 <div>
                   <label className="text-[10px] font-bold text-[#958ea0] uppercase tracking-wider mb-1 block truncate">Membership Plan *</label>
-                  <select
-                    value={selectedPlanId}
-                    onChange={(e) => setSelectedPlanId(e.target.value)}
-                    className="w-full h-9 bg-[#1c2b3c] border border-[#273647] rounded-xl px-2 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff] truncate cursor-pointer"
-                  >
-                    {plans.map((p) => (
-                      <option key={p._id} value={p._id}>
-                        {p.name} — ₹{p.price.toLocaleString()} ({p.duration} {p.durationType.toLowerCase()})
-                      </option>
-                    ))}
-                  </select>
+                  {plans.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickCreatePlan(true)}
+                      className="w-full h-9 px-2 rounded-xl border border-dashed border-[#d0bcff]/60 bg-[#d0bcff]/10 hover:bg-[#d0bcff]/20 text-[#d0bcff] text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.99]"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span className="truncate">+ Create Membership Plan</span>
+                    </button>
+                  ) : (
+                    <select
+                      value={selectedPlanId}
+                      onChange={(e) => setSelectedPlanId(e.target.value)}
+                      className="w-full h-9 bg-[#1c2b3c] border border-[#273647] rounded-xl px-2 text-xs text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff] truncate cursor-pointer"
+                    >
+                      {plans.map((p) => (
+                        <option key={p._id} value={p._id}>
+                          {p.name} — ₹{p.price.toLocaleString()} ({p.duration} {p.durationType.toLowerCase()})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
 
@@ -1009,17 +1074,28 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
                       <label className="text-[10px] font-bold text-[#958ea0] mb-0.5 block">Renewal Plan *</label>
-                      <select
-                        value={renewPlanId}
-                        onChange={(e) => setRenewPlanId(e.target.value)}
-                        className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2 py-1.5 text-xs text-[#d4e4fa]"
-                      >
-                        {plans.map((p) => (
-                          <option key={p._id} value={p._id}>
-                            {p.name} — ₹{p.price.toLocaleString()} ({p.duration} {p.durationType.toLowerCase()})
-                          </option>
-                        ))}
-                      </select>
+                      {plans.length === 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowQuickCreatePlan(true)}
+                          className="w-full h-8 px-2 rounded-xl border border-dashed border-[#d0bcff]/60 bg-[#d0bcff]/10 hover:bg-[#d0bcff]/20 text-[#d0bcff] text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-[0.99]"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span className="truncate">+ Create Membership Plan</span>
+                        </button>
+                      ) : (
+                        <select
+                          value={renewPlanId}
+                          onChange={(e) => setRenewPlanId(e.target.value)}
+                          className="w-full bg-[#1c2b3c] border border-[#273647] rounded-xl px-2 py-1.5 text-xs text-[#d4e4fa]"
+                        >
+                          {plans.map((p) => (
+                            <option key={p._id} value={p._id}>
+                              {p.name} — ₹{p.price.toLocaleString()} ({p.duration} {p.durationType.toLowerCase()})
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
 
                     <div>
@@ -1136,6 +1212,135 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Quick Create Membership Plan Modal (Only accessible if no membership plan exists) */}
+      {showQuickCreatePlan && (
+        <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-[#0e1b2b] border border-[#1e2f42] rounded-2xl shadow-2xl p-6 space-y-4 text-left">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-1">
+              <div className="flex items-center gap-2.5">
+                <Award className="w-5 h-5 text-[#d0bcff]" />
+                <h3 className="text-base md:text-lg font-bold text-[#e1ebf7]">Create Membership Plan</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowQuickCreatePlan(false);
+                  setQuickPlanError(null);
+                }}
+                className="text-[#738499] hover:text-white p-1 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {quickPlanError && (
+              <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400">
+                {quickPlanError}
+              </div>
+            )}
+
+            <form onSubmit={handleQuickCreatePlan} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-[#738499] uppercase tracking-wider mb-1.5 block">
+                  PLAN NAME
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Gold Monthly Unlimited"
+                  value={quickPlanName}
+                  onChange={(e) => setQuickPlanName(e.target.value)}
+                  className="w-full h-11 bg-[#132232] border border-[#22354a] rounded-xl px-3.5 text-xs md:text-sm text-[#d4e4fa] placeholder:text-[#4d6177] focus:outline-none focus:border-[#d0bcff]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3.5">
+                <div>
+                  <label className="text-[10px] font-bold text-[#738499] uppercase tracking-wider mb-1.5 block">
+                    CODE
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g.  M-GOLD"
+                    value={quickPlanCode}
+                    onChange={(e) => setQuickPlanCode(e.target.value)}
+                    className="w-full h-11 bg-[#132232] border border-[#22354a] rounded-xl px-3.5 text-xs md:text-sm text-[#d4e4fa] placeholder:text-[#4d6177] focus:outline-none focus:border-[#d0bcff] font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-[#738499] uppercase tracking-wider mb-1.5 block">
+                    PRICE (₹)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    placeholder="2000"
+                    value={quickPlanPrice}
+                    onChange={(e) => setQuickPlanPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full h-11 bg-[#132232] border border-[#22354a] rounded-xl px-3.5 text-xs md:text-sm text-[#d4e4fa] placeholder:text-[#4d6177] focus:outline-none focus:border-[#d0bcff]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3.5">
+                <div>
+                  <label className="text-[10px] font-bold text-[#738499] uppercase tracking-wider mb-1.5 block">
+                    DURATION
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    placeholder="1"
+                    value={quickPlanDuration}
+                    onChange={(e) => setQuickPlanDuration(Number(e.target.value) || 1)}
+                    className="w-full h-11 bg-[#132232] border border-[#22354a] rounded-xl px-3.5 text-xs md:text-sm text-[#d4e4fa] placeholder:text-[#4d6177] focus:outline-none focus:border-[#d0bcff]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-[#738499] uppercase tracking-wider mb-1.5 block">
+                    DURATION UNIT
+                  </label>
+                  <select
+                    value={quickPlanDurationType}
+                    onChange={(e) => setQuickPlanDurationType(e.target.value)}
+                    className="w-full h-11 bg-[#132232] border border-[#22354a] rounded-xl px-3.5 text-xs md:text-sm text-[#d4e4fa] focus:outline-none focus:border-[#d0bcff] cursor-pointer"
+                  >
+                    <option value="MONTHS">Months</option>
+                    <option value="DAYS">Days</option>
+                    <option value="WEEKS">Weeks</option>
+                    <option value="YEARS">Years</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-[#1a2b3d] flex items-center justify-end gap-5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickCreatePlan(false);
+                    setQuickPlanError(null);
+                  }}
+                  className="text-xs md:text-sm font-semibold text-[#8394a8] hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingPlan || !quickPlanName.trim() || quickPlanPrice === ''}
+                  className="px-5 py-2.5 rounded-2xl bg-[#d0bcff] hover:bg-[#d0bcff]/90 text-[#38008a] font-bold text-xs md:text-sm transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-[#d0bcff]/15 active:scale-95"
+                >
+                  {isCreatingPlan && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{isCreatingPlan ? 'Saving...' : 'Save Plan Template'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

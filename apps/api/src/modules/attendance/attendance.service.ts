@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { SelfCheckInDto } from '@klyro/validation';
@@ -7,6 +7,7 @@ import { Customer, CustomerDocument } from '../customers/schemas/customer.schema
 import { Branch, BranchDocument } from '../branches/schemas/branch.schema';
 import { MembershipAccessService } from './services/membership-access.service';
 import { GpsValidationService } from './services/gps-validation.service';
+import { EntitlementService } from '../subscription/entitlement.service';
 
 @Injectable()
 export class AttendanceService {
@@ -19,6 +20,8 @@ export class AttendanceService {
     private readonly branchModel: Model<BranchDocument>,
     private readonly membershipAccessService: MembershipAccessService,
     private readonly gpsValidationService: GpsValidationService,
+    @Optional()
+    private readonly entitlementService?: EntitlementService,
   ) {}
 
   /**
@@ -70,7 +73,17 @@ export class AttendanceService {
       throw new NotFoundException('Branch not found');
     }
 
-    // 3. Check Self Check-in Enabled
+    // 3. Check Subscription Plan Feature Entitlement
+    if (this.entitlementService) {
+      const plan = await this.entitlementService.getEffectivePlan(organizationId);
+      if (plan && plan.features?.selfCheckIn === false) {
+        throw new BadRequestException(
+          `Member self check-in is not supported on the ${plan.name} plan. Please contact gym administration or upgrade plan.`,
+        );
+      }
+    }
+
+    // 4. Check Self Check-in Enabled on Branch
     if (!branch.settings?.memberSelfCheckInEnabled) {
       throw new BadRequestException('Check-in is currently disabled by your gym.');
     }

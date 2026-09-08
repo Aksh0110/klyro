@@ -129,6 +129,7 @@ export interface RetentionAttentionItem {
 }
 
 export interface RetentionAttentionSummary {
+  totalActiveMembers?: number;
   expiringCount: number;
   expiringAmountAtRisk: number;
   overdueCount: number;

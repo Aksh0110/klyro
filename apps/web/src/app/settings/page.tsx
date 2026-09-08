@@ -29,6 +29,7 @@ import {
   Loader2,
   AlertTriangle,
   Check,
+  Lock,
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -272,6 +273,8 @@ export default function SettingsPage() {
   const plan = sub?.subscriptionPlanId;
   const isTrial = sub?.status === 'TRIAL';
   const isActive = sub?.status === 'ACTIVE';
+  const isStarterPlan = !isTrial && (plan?.code === 'STARTER' || plan?.name === 'Starter' || sub?.amount === 499);
+  const isStarterBranchLocked = isStarterPlan && branches.length >= 1;
 
   const dueDateStr = sub?.currentPeriodEnd || sub?.trialEndDate;
   const dueDate = dueDateStr ? new Date(dueDateStr) : null;
@@ -445,10 +448,10 @@ export default function SettingsPage() {
                   </Link>
 
                   <Link
-                    href="/settings/subscription"
+                    href="/settings/subscription?tab=history"
                     className="px-3 py-1.5 sm:py-2 bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs rounded-xl border border-border transition-all flex items-center justify-center gap-1.5 text-center"
                   >
-                    <span>Billing & History</span>
+                    <span>Billing History</span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>
@@ -536,7 +539,7 @@ export default function SettingsPage() {
                     {plan?.name || (isTrial ? 'Growth (Trial)' : 'Growth Plan')}
                   </p>
                   <p className="text-[11px] text-muted-foreground font-medium">
-                    ₹{sub?.amount || plan?.monthlyPrice || 799}/month · Up to {plan?.memberLimit || 500} members
+                    ₹{sub?.amount || plan?.monthlyPrice || (isTrial ? 799 : 499)}/month · Up to {plan?.memberLimit || (sub?.amount === 499 || plan?.name === 'Starter' ? 30 : 500)} members
                   </p>
                 </div>
 
@@ -583,13 +586,34 @@ export default function SettingsPage() {
                 Enable or disable mobile GPS self check-in, configure branch coordinates, and set geofence radius.
               </p>
             </div>
-            <Link
-              href="/settings/attendance"
-              className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 shrink-0 text-center"
-            >
-              <SettingsIcon className="w-4 h-4" />
-              <span>Manage Check-In Settings</span>
-            </Link>
+            {isStarterPlan ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled
+                  className="px-3 py-2 bg-secondary/50 text-muted-foreground border border-border/50 text-xs font-semibold rounded-xl cursor-not-allowed flex items-center gap-1.5 opacity-60"
+                  title="Member GPS self check-in is unavailable on Starter plan"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Self Check-In Disabled</span>
+                </button>
+                <Link
+                  href="/settings/subscription/plans"
+                  className="px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-md shadow-purple-950/20 transition-all flex items-center justify-center gap-1.5 shrink-0 text-center active:scale-95 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Upgrade Plan</span>
+                </Link>
+              </div>
+            ) : (
+              <Link
+                href="/settings/attendance"
+                className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 shrink-0 text-center"
+              >
+                <SettingsIcon className="w-4 h-4" />
+                <span>Manage Check-In Settings</span>
+              </Link>
+            )}
           </div>
         )}
 
@@ -607,18 +631,39 @@ export default function SettingsPage() {
               </div>
 
               {isOwnerOrAdmin && (
-                <button
-                  type="button"
-                  onClick={() => setShowAddBranchForm(!showAddBranchForm)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 ${
-                    showAddBranchForm
-                      ? 'bg-secondary text-foreground hover:bg-secondary/80'
-                      : 'bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20'
-                  }`}
-                >
-                  <Plus className={`w-3.5 h-3.5 transition-transform duration-200 ${showAddBranchForm ? 'rotate-45' : ''}`} />
-                  <span>{showAddBranchForm ? 'Close' : 'Add Branch'}</span>
-                </button>
+                isStarterBranchLocked ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-secondary/50 text-muted-foreground border border-border/50 cursor-not-allowed flex items-center gap-1.5 opacity-60"
+                      title="Single-branch management: 1 branch limit on Starter plan"
+                    >
+                      <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span>Add Branch</span>
+                    </button>
+                    <Link
+                      href="/settings/subscription/plans"
+                      className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-[11px] font-bold shadow-md shadow-purple-950/20 flex items-center gap-1 transition-all active:scale-95 shrink-0 cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-300" />
+                      <span>Upgrade Plan</span>
+                    </Link>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddBranchForm(!showAddBranchForm)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 ${
+                      showAddBranchForm
+                        ? 'bg-secondary text-foreground hover:bg-secondary/80'
+                        : 'bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20'
+                    }`}
+                  >
+                    <Plus className={`w-3.5 h-3.5 transition-transform duration-200 ${showAddBranchForm ? 'rotate-45' : ''}`} />
+                    <span>{showAddBranchForm ? 'Close' : 'Add Branch'}</span>
+                  </button>
+                )
               )}
             </div>
 

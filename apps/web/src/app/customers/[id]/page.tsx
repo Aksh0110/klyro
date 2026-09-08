@@ -721,17 +721,30 @@ export default function CustomerDetailPage() {
             <form onSubmit={handleRenew} className="space-y-4">
               <div>
                 <label className="text-xs font-semibold text-muted-foreground block mb-1">Renewal Plan *</label>
-                <select
-                  value={renewPlanId}
-                  onChange={(e) => setRenewPlanId(e.target.value)}
-                  className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
-                >
-                  {plans.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.name} — ₹{p.price.toLocaleString()} ({p.duration} {p.durationType.toLowerCase()})
-                    </option>
-                  ))}
-                </select>
+                {plans.length === 0 ? (
+                  <div className="p-3 bg-secondary/30 border border-dashed border-border rounded-xl text-center space-y-2">
+                    <p className="text-xs text-muted-foreground">No membership plans created yet.</p>
+                    <a
+                      href="/memberships"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Create Membership Plan in Catalog
+                    </a>
+                  </div>
+                ) : (
+                  <select
+                    value={renewPlanId}
+                    onChange={(e) => setRenewPlanId(e.target.value)}
+                    className="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-sm"
+                  >
+                    {plans.map((p) => (
+                      <option key={p._id} value={p._id}>
+                        {p.name} — ₹{p.price.toLocaleString()} ({p.duration} {p.durationType.toLowerCase()})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div className="space-y-2">

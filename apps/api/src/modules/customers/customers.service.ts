@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreateCustomerDto, UpdateCustomerDto } from '@klyro/validation';
 import { Customer, CustomerDocument } from './schemas/customer.schema';
 import { BranchesService } from '../branches/branches.service';
+import { EntitlementService } from '../subscription/entitlement.service';
 
 @Injectable()
 export class CustomersService {
@@ -11,10 +12,25 @@ export class CustomersService {
     @InjectModel(Customer.name)
     private readonly customerModel: Model<CustomerDocument>,
     private readonly branchesService: BranchesService,
+    @Optional()
+    private readonly entitlementService?: EntitlementService,
   ) {}
 
   async createCustomer(organizationId: string, dto: CreateCustomerDto): Promise<CustomerDocument> {
     const orgObjectId = new Types.ObjectId(organizationId);
+
+    // Verify member limit according to active subscription plan
+    if (this.entitlementService) {
+      const plan = await this.entitlementService.getEffectivePlan(organizationId);
+      if (plan?.memberLimit) {
+        const currentMemberCount = await this.customerModel.countDocuments({ organizationId: orgObjectId });
+        if (currentMemberCount >= plan.memberLimit) {
+          throw new BadRequestException(
+            `Member limit reached (${currentMemberCount}/${plan.memberLimit}) for your ${plan.name} plan. Please upgrade your subscription to add more members.`,
+          );
+        }
+      }
+    }
 
     if (dto.dateOfBirth && new Date(dto.dateOfBirth) > new Date()) {
       throw new BadRequestException('Date of birth cannot be in the future');
